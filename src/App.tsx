@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { GameProvider } from './context/GameContext';
 import {
   MainScreen,
@@ -17,7 +17,7 @@ type AppState =
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>({ screen: 'main' });
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode] = useState(true);
 
   useEffect(() => {
     // Register service worker for PWA

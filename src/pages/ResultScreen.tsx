@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Header, Button, Card, ProgressBar } from '../components';
 import { useGame } from '../context/GameContext';
 import { Answer } from '../hooks/useQuiz';
@@ -17,7 +17,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   onRetry,
   onQuit,
 }) => {
-  const { score, level, streak, xp } = useGame();
+  const { score, level, streak } = useGame();
   const [showDetails, setShowDetails] = useState(false);
 
   const correctAnswers = answers.filter((a) => a.isCorrect).length;
@@ -25,19 +25,6 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   const percentage = (correctAnswers / totalQuestions) * 100;
   const performanceMsg = getPerformanceMessage(correctAnswers, totalQuestions);
   const streakMsg = getStreakMessage(streak);
-
-  // Sort answers by category
-  const answersByCategory = answers.reduce(
-    (acc, answer) => {
-      const category = answer.questionId;
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(answer);
-      return acc;
-    },
-    {} as Record<string, Answer[]>,
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white pb-20">
