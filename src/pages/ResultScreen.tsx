@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Header, Button, Card, ProgressBar } from '../components';
 import { useGame } from '../context/GameContext';
 import { Answer } from '../hooks/useQuiz';
 import { getPerformanceMessage, getStreakMessage } from '../utils/scoring';
+import { addDailyResult, getPlayerName } from '../utils/dailyLeaderboard';
 
 interface ResultScreenProps {
   answers: Answer[];
@@ -26,133 +27,285 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   const performanceMsg = getPerformanceMessage(correctAnswers, totalQuestions);
   const streakMsg = getStreakMessage(streak);
 
+  // Автоматически добавить результат в ежедневный рейтинг
+  useEffect(() => {
+    if (totalScore > 0) {
+      const playerName = getPlayerName();
+      addDailyResult(totalScore, playerName);
+    }
+  }, []);
+
+  const getPerformanceEmoji = () => {
+    if (percentage >= 90) return '🌟';
+    if (percentage >= 80) return '🎉';
+    if (percentage >= 70) return '👏';
+    if (percentage >= 60) return '👍';
+    return '💪';
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white pb-20">
+    <div className="min-h-screen flex flex-col">
+      {/* Background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 -z-10" />
+
       <Header title="Результаты" showStats={true} />
 
-      <div className="px-4 py-6 max-w-md mx-auto space-y-6">
-        {/* Performance Badge */}
-        <Card className="bg-gradient-to-br from-purple-900 via-pink-900 to-purple-900 border-pink-700 py-8 text-center animate-slideDown">
-          <div className="mb-4">
-            <div className="text-6xl mb-4">
-              {percentage >= 80 ? '🌟' : percentage >= 60 ? '🎉' : percentage >= 40 ? '👍' : '💪'}
-            </div>
-            <p className="text-2xl font-bold mb-2">{Math.round(percentage)}%</p>
-            <p className="text-lg text-purple-300">{performanceMsg}</p>
-          </div>
-        </Card>
-
-        {/* Score Summary */}
-        <Card className="space-y-4">
-          <h3 className="text-lg font-bold text-center mb-4">📊 Статистика</h3>
-
-          <div className="space-y-4">
-            {/* Correct Answers */}
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-gray-300">Правильные ответы</span>
-                <span className="text-sm font-bold text-green-400">{correctAnswers}/{totalQuestions}</span>
-              </div>
-              <ProgressBar current={correctAnswers} max={totalQuestions} color="green" />
-            </div>
-
-            {/* Score Gained */}
-            <div className="pt-4 border-t border-gray-700">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm text-gray-300">Очки в этом раунде</span>
-                <span className={`text-lg font-bold ${totalScore >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {totalScore > 0 ? '+' : ''}{totalScore}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 text-center text-sm">
-                <div className="bg-gray-900 rounded-lg p-3">
-                  <p className="text-gray-400 mb-1">Уровень</p>
-                  <p className="text-xl font-bold text-blue-400">{level}</p>
-                </div>
-                <div className="bg-gray-900 rounded-lg p-3">
-                  <p className="text-gray-400 mb-1">Всего очков</p>
-                  <p className="text-xl font-bold text-green-400">{score.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-900 rounded-lg p-3">
-                  <p className="text-gray-400 mb-1">Серия</p>
-                  <p className="text-xl font-bold text-purple-400">{streak}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Streak Message */}
-            <div className="text-center text-sm text-purple-300 bg-purple-900 bg-opacity-30 p-3 rounded-lg">
-              🔥 {streakMsg}
-            </div>
-          </div>
-        </Card>
-
-        {/* Detailed Answers */}
-        <div>
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="w-full text-left text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors py-2 flex items-center justify-between"
-          >
-            <span>📋 {showDetails ? 'Скрыть' : 'Показать'} детали ответов</span>
-            <span>{showDetails ? '▼' : '▶'}</span>
-          </button>
-
-          {showDetails && (
-            <div className="space-y-2 mt-4">
-              {answers.slice(0, 5).map((answer, idx) => (
-                <div
-                  key={idx}
-                  className={`p-3 rounded-lg text-sm ${
-                    answer.isCorrect
-                      ? 'bg-green-900 bg-opacity-30 border border-green-700'
-                      : 'bg-red-900 bg-opacity-30 border border-red-700'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="font-semibold">
-                      {answer.isCorrect ? '✅' : '❌'} Вопрос {idx + 1}
-                    </span>
-                    <span className="text-xs text-gray-400">{answer.timeTaken}с</span>
-                  </div>
-                  <p className="text-xs text-gray-300">Для закрытия откройте</p>
-                </div>
-              ))}
-              {answers.length > 5 && (
-                <p className="text-xs text-center text-gray-400 py-2">
-                  И еще {answers.length - 5} вопросов...
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="space-y-3 pt-4">
-          <Button onClick={onRetry} size="lg" className="animate-slideUp">
-            🔄 Попробовать еще раз
-          </Button>
-
-          <Button
-            onClick={onQuit}
-            variant="secondary"
+      <div className="flex-1 overflow-auto px-4 py-6 pb-24">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Performance Card */}
+          <Card
+            variant="gradient"
             size="lg"
-            className="animate-slideUp"
+            className="animate-slideUp text-center relative overflow-hidden border-l-4 border-l-success-500"
           >
-            🏠 В меню
-          </Button>
-        </div>
+            {/* Decorative background */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-success-500 rounded-full blur-3xl" />
+            </div>
 
-        {/* Tips for improvement */}
-        <Card className="bg-gradient-to-br from-blue-900 to-cyan-900 border-cyan-700 text-sm space-y-2">
-          <p className="font-semibold text-cyan-200">💡 Еще немного:</p>
-          <ul className="text-cyan-100 space-y-1 text-xs">
-            {percentage < 80 && <li>• Повторите теорию перед следующим раундом</li>}
-            {percentage >= 80 && <li>• Попробуйте вопросы повышенной сложности</li>}
-            <li>• Берите вызовы, чтобы получить бонусные очки</li>
-            <li>• Ежедневная практика повышает мастерство</li>
-          </ul>
-        </Card>
+            <div className="relative space-y-4">
+              <div className="text-7xl font-bold">
+                {getPerformanceEmoji()}
+              </div>
+
+              <div>
+                <p className="text-5xl sm:text-6xl font-bold font-display text-transparent bg-gradient-to-r from-success-400 to-cyan-400 bg-clip-text mb-2">
+                  {Math.round(percentage)}%
+                </p>
+                <p className="text-xl sm:text-2xl font-semibold text-slate-200">
+                  {performanceMsg}
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-400/20">
+                <p className="text-sm text-slate-300">
+                  {correctAnswers} из {totalQuestions} ответов правильно
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Daily Leaderboard Notification */}
+          <Card
+            variant="default"
+            size="md"
+            className="border-l-4 border-l-success-500 bg-gradient-to-r from-success-500/10 to-emerald-500/10 animate-slideUp"
+          >
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">🏆</span>
+              <div>
+                <p className="font-bold text-success-300 text-lg">
+                  Результат добавлен в рейтинг!
+                </p>
+                <p className="text-sm text-slate-300">
+                  Заработано <span className="font-bold text-success-400">{totalScore} очков</span> за эту попытку
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Statistics Grid */}
+          <Card variant="subtle" size="md">
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold font-display text-slate-100">
+                📊 Статистика
+              </h3>
+
+              {/* Accuracy */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-300">Точность</span>
+                  <span className="text-lg font-bold text-success-400">
+                    {correctAnswers}/{totalQuestions}
+                  </span>
+                </div>
+                <ProgressBar
+                  current={correctAnswers}
+                  max={totalQuestions}
+                  color="success"
+                  size="lg"
+                />
+              </div>
+
+              {/* Score Divider */}
+              <div className="border-t border-slate-700" />
+
+              {/* Score Details */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-300">Очки в этом раунде</span>
+                  <span
+                    className={`text-2xl font-bold font-mono ${
+                      totalScore >= 0 ? 'text-success-400' : 'text-danger-400'
+                    }`}
+                  >
+                    {totalScore > 0 ? '+' : ''}{totalScore}
+                  </span>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3 pt-3">
+                  <div className="glass p-4 rounded-lg text-center">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Level
+                    </p>
+                    <p className="text-2xl font-bold text-primary-400">{level}</p>
+                  </div>
+
+                  <div className="glass p-4 rounded-lg text-center">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Total Score
+                    </p>
+                    <p className="text-2xl font-bold text-success-400">
+                      {score.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="glass p-4 rounded-lg text-center">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Streak 🔥
+                    </p>
+                    <p className="text-2xl font-bold text-warning-400">{streak}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Streak Message */}
+          <Card
+            variant="default"
+            size="md"
+            className="border-l-4 border-l-warning-500 bg-gradient-to-r from-warning-500/10 to-orange-500/10"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🔥</span>
+              <div>
+                <p className="font-bold text-warning-300">{streakMsg}</p>
+                <p className="text-sm text-slate-400">Продолжайте в том же духе!</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Detailed Answers */}
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="w-full text-left flex items-center justify-between font-semibold text-slate-300 hover:text-primary-300 transition-colors py-3 px-4 glass rounded-lg border border-slate-700 hover:border-primary-500"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📋</span>
+                {showDetails ? 'Скрыть' : 'Показать'} детали ответов
+              </span>
+              <span className="text-lg">{showDetails ? '▼' : '▶'}</span>
+            </button>
+
+            {showDetails && (
+              <div className="space-y-2 animate-slideDown">
+                {answers.slice(0, 10).map((answer, idx) => (
+                  <Card
+                    key={idx}
+                    variant="subtle"
+                    size="sm"
+                    className={`border-l-4 ${
+                      answer.isCorrect
+                        ? 'border-l-success-500 bg-success-500/5'
+                        : 'border-l-danger-500 bg-danger-500/5'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2 flex-1">
+                        <span className="text-lg flex-shrink-0">
+                          {answer.isCorrect ? '✅' : '❌'}
+                        </span>
+                        <div>
+                          <p className="font-semibold text-slate-200">
+                            Вопрос {idx + 1}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {answer.timeTaken}с затрачено
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-sm font-bold ${
+                          answer.isCorrect
+                            ? 'text-success-400'
+                            : 'text-danger-400'
+                        }`}
+                      >
+                        {answer.isCorrect ? '✓' : '✗'}
+                      </span>
+                    </div>
+                  </Card>
+                ))}
+                {answers.length > 10 && (
+                  <p className="text-xs text-center text-slate-400 py-3 font-semibold">
+                    И еще {answers.length - 10} вопросов...
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+            <Button
+              onClick={onRetry}
+              variant="primary"
+              size="lg"
+              icon="🔄"
+              className="animate-slideUp"
+            >
+              Еще раз
+            </Button>
+
+            <Button
+              onClick={onQuit}
+              variant="secondary"
+              size="lg"
+              icon="🏠"
+              className="animate-slideUp"
+            >
+              В меню
+            </Button>
+          </div>
+
+          {/* Tips for Improvement */}
+          <Card
+            variant="default"
+            size="md"
+            className="border-l-4 border-l-primary-500 bg-gradient-to-r from-primary-500/10 to-cyan-500/10"
+          >
+            <div className="space-y-3">
+              <h4 className="text-lg font-bold font-display text-primary-300 flex items-center gap-2">
+                💡 Советы для улучшения
+              </h4>
+              <ul className="space-y-2 text-sm text-slate-300">
+                {percentage < 80 && (
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-400 flex-shrink-0">•</span>
+                    <span>Повторите материал перед следующей попыткой</span>
+                  </li>
+                )}
+                {percentage >= 80 && (
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-400 flex-shrink-0">•</span>
+                    <span>Отличный результат! Попробуйте сложные вопросы</span>
+                  </li>
+                )}
+                <li className="flex items-start gap-2">
+                  <span className="text-primary-400 flex-shrink-0">•</span>
+                  <span>Быстрые ответы дают больше бонусных очков</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary-400 flex-shrink-0">•</span>
+                  <span>Ежедневная практика улучшает результаты</span>
+                </li>
+              </ul>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

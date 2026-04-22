@@ -1,6 +1,39 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+// User Profile Interface
+export interface UserProfile {
+  id: string;
+  email: string;
+  login: string;
+  password: string; // In production, this should be hashed server-side
+  avatar: string; // Avatar ID (e.g., '1', '2', '3')
+  nickname: string; // Display nickname (can have special styling from achievements)
+  isRegistered: boolean;
+  registeredAt: string; // Timestamp
+}
+
+// Achievement/Reward Interface
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlockedAt?: string;
+  reward?: {
+    nicknameStyle?: 'rainbow' | 'gold' | 'platinum' | 'diamond';
+    avatarAccessory?: 'academic-hat' | 'crown' | 'halo' | 'medal';
+  };
+}
+
 export interface GameContextType {
+  // User Profile
+  user: UserProfile | null;
+  registerUser: (email: string, login: string, password: string) => void;
+  updateUserProfile: (profile: Partial<UserProfile>) => void;
+  isUserLoggedIn: boolean;
+  logout: () => void;
+
+  // Game Stats
   score: number;
   level: number;
   xp: number;
@@ -12,11 +45,23 @@ export interface GameContextType {
   addScore: (points: number) => void;
   addXP: (xp: number) => void;
   resetGame: () => void;
+
+  // Achievements
+  achievements: Achievement[];
+  addAchievement: (achievement: Achievement) => void;
+  getAchievements: () => Achievement[];
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // User Profile State
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('eduplay_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Game Stats State
   const [score, setScore] = useState(() => {
     const saved = localStorage.getItem('eduplay_score');
     return saved ? parseInt(saved) : 0;
@@ -37,7 +82,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? parseInt(saved) : 0;
   });
 
-  // Save to localStorage whenever values change
+  // Achievements State
+  const [achievements, setAchievements] = useState<Achievement[]>(() => {
+    const saved = localStorage.getItem('eduplay_achievements');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save user to localStorage
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('eduplay_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('eduplay_user');
+    }
+  }, [user]);
+
+  // Save game stats to localStorage
   useEffect(() => {
     localStorage.setItem('eduplay_score', score.toString());
   }, [score]);
@@ -54,6 +114,38 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('eduplay_streak', streak.toString());
   }, [streak]);
 
+  // Save achievements to localStorage
+  useEffect(() => {
+    localStorage.setItem('eduplay_achievements', JSON.stringify(achievements));
+  }, [achievements]);
+
+  // User Management Functions
+  const registerUser = (email: string, login: string, password: string) => {
+    const newUser: UserProfile = {
+      id: `user_${Date.now()}`,
+      email,
+      login,
+      password, // Note: In production, hash this on backend
+      avatar: '1', // Default avatar
+      nickname: login, // Default nickname
+      isRegistered: true,
+      registeredAt: new Date().toISOString(),
+    };
+    setUser(newUser);
+  };
+
+  const updateUserProfile = (profile: Partial<UserProfile>) => {
+    if (user) {
+      setUser({ ...user, ...profile });
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('eduplay_user');
+  };
+
+  // Game Functions
   const addScore = (points: number) => {
     setScore((prev) => prev + points);
   };
@@ -66,6 +158,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newLevel = Math.floor(newXP / 100) + 1;
     if (newLevel > level) {
       setLevel(newLevel);
+      // Auto-add achievement for leveling up
+      checkAndAddLevelUpAchievements(newLevel);
     }
   };
 
@@ -76,7 +170,65 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStreak(0);
   };
 
+  // Achievement Functions
+  const addAchievement = (achievement: Achievement) => {
+    if (!achievements.find((a) => a.id === achievement.id)) {
+      setAchievements([...achievements, achievement]);
+    }
+  };
+
+  const getAchievements = () => achievements;
+
+  const checkAndAddLevelUpAchievements = (newLevel: number) => {
+    const levelAchievements: { [key: number]: Achievement } = {
+      10: {
+        id: 'level_10',
+        name: '🚀 Рокетомен',
+        description: 'Достигли уровня 10',
+        icon: '🚀',
+        unlockedAt: new Date().toISOString(),
+        reward: {
+          nicknameStyle: 'gold',
+        },
+      },
+      25: {
+        id: 'level_25',
+        name: '⭐ Звезда',
+        description: 'Достигли уровня 25',
+        icon: '⭐',
+        unlockedAt: new Date().toISOString(),
+        reward: {
+          nicknameStyle: 'platinum',
+          avatarAccessory: 'crown',
+        },
+      },
+      50: {
+        id: 'level_50',
+        name: '💎 Легенда',
+        description: 'Достигли уровня 50',
+        icon: '💎',
+        unlockedAt: new Date().toISOString(),
+        reward: {
+          nicknameStyle: 'rainbow',
+          avatarAccessory: 'halo',
+        },
+      },
+    };
+
+    if (levelAchievements[newLevel]) {
+      addAchievement(levelAchievements[newLevel]);
+    }
+  };
+
   const value: GameContextType = {
+    // User Profile
+    user,
+    registerUser,
+    updateUserProfile,
+    isUserLoggedIn: user !== null,
+    logout,
+
+    // Game Stats
     score,
     level,
     xp,
@@ -88,6 +240,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addScore,
     addXP,
     resetGame,
+
+    // Achievements
+    achievements,
+    addAchievement,
+    getAchievements,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

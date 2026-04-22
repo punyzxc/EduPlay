@@ -1,22 +1,29 @@
 import { useState, useEffect } from 'react';
-import { GameProvider } from './context/GameContext';
+import { GameProvider, useGame } from './context/GameContext';
 import {
   MainScreen,
   QuizScreen,
   ResultScreen,
   LeaderboardScreen,
+  LandingPage,
+  RegistrationScreen,
 } from './pages';
 import { QUESTIONS } from './data/questions';
 import { Answer } from './hooks/useQuiz';
 
 type AppState =
+  | { screen: 'landing' }
+  | { screen: 'registration' }
   | { screen: 'main' }
   | { screen: 'quiz' }
   | { screen: 'results'; answers: Answer[]; totalScore: number }
   | { screen: 'leaderboard' };
 
 function AppContent() {
-  const [appState, setAppState] = useState<AppState>({ screen: 'main' });
+  const { isUserLoggedIn, registerUser } = useGame();
+  const [appState, setAppState] = useState<AppState>(() => {
+    return isUserLoggedIn ? { screen: 'main' } : { screen: 'landing' };
+  });
   const [isDarkMode] = useState(true);
 
   useEffect(() => {
@@ -34,6 +41,29 @@ function AppContent() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  // Navigation handlers
+  const handleLandingStart = () => {
+    setAppState({ screen: 'registration' });
+  };
+
+  const handleLandingContacts = () => {
+    // TODO: Implement contacts screen or redirect
+    console.log('Contacts');
+  };
+
+  const handleRegistrationComplete = (userData: {
+    email: string;
+    login: string;
+    password: string;
+  }) => {
+    registerUser(userData.email, userData.login, userData.password);
+    setAppState({ screen: 'main' });
+  };
+
+  const handleRegistrationBack = () => {
+    setAppState({ screen: 'landing' });
+  };
 
   const handleStartQuiz = () => {
     setAppState({ screen: 'quiz' });
@@ -60,7 +90,21 @@ function AppContent() {
   };
 
   return (
-    <div className="bg-gray-900 text-white">
+    <div className="bg-gray-900 text-white min-h-screen">
+      {appState.screen === 'landing' && (
+        <LandingPage
+          onStart={handleLandingStart}
+          onContacts={handleLandingContacts}
+        />
+      )}
+
+      {appState.screen === 'registration' && (
+        <RegistrationScreen
+          onRegistrationComplete={handleRegistrationComplete}
+          onBack={handleRegistrationBack}
+        />
+      )}
+
       {appState.screen === 'main' && (
         <MainScreen
           onStartQuiz={handleStartQuiz}
