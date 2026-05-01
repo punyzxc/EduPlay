@@ -1,20 +1,5 @@
 import { useState, useCallback } from 'react';
-
-export interface Question {
-  id: string;
-  question: string;
-  options: string[];
-  correct: number;
-  category: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-export interface Answer {
-  questionId: string;
-  selectedIndex: number;
-  isCorrect: boolean;
-  timeTaken: number;
-}
+import { Answer, Question } from '../types/quiz';
 
 export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => void) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -22,13 +7,14 @@ export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => vo
   const [isAnswered, setIsAnswered] = useState(false);
 
   const currentQuestion = questions[currentIndex];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
+  const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
   const answerQuestion = useCallback(
     (selectedIndex: number, timeTaken: number = 0) => {
       if (isAnswered) return;
+      if (!currentQuestion) return;
 
-      const isCorrect = selectedIndex === currentQuestion.correct;
+      const isCorrect = selectedIndex === currentQuestion.correctAnswer;
       const newAnswer: Answer = {
         questionId: currentQuestion.id,
         selectedIndex,
@@ -74,3 +60,5 @@ export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => vo
     correctAnswers: answers.filter((a) => a.isCorrect).length,
   };
 };
+
+export type { Answer, Question } from '../types/quiz';

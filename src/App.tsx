@@ -1,137 +1,117 @@
-import { useState, useEffect } from 'react';
-import { GameProvider, useGame } from './context/GameContext';
-import {
-  MainScreen,
-  QuizScreen,
-  ResultScreen,
-  LeaderboardScreen,
-  LandingPage,
-  RegistrationScreen,
-} from './pages';
-import { QUESTIONS } from './data/questions';
-import { Answer } from './hooks/useQuiz';
+import { useEffect, useRef, useState } from 'react';
+import { GameProvider } from './context/GameContext';
+import { MainScreen, QuizScreen, ResultScreen, LeaderboardScreen } from './pages';
+import { DEFAULT_QUIZ_SETTINGS, createQuizSession } from './data/questions';
+import { Answer, Question, QuizSettings } from './types/quiz';
 
-type AppState =
-  | { screen: 'landing' }
-  | { screen: 'registration' }
-  | { screen: 'main' }
-  | { screen: 'quiz' }
-  | { screen: 'results'; answers: Answer[]; totalScore: number }
-  | { screen: 'leaderboard' };
+type AppScreen = 'main' | 'quiz' | 'results' | 'leaderboard';
+
+interface QuizResult {
+  answers: Answer[];
+  totalScore: number;
+}
+
+interface LoadingScreenProps {
+  message: string;
+}
+
+const LoadingScreen = ({ message }: LoadingScreenProps) => (
+  <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
+    <div className="w-full max-w-md rounded-2xl border border-primary-500/30 bg-slate-900/80 p-8 text-center shadow-2xl">
+      <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-200/20 border-t-primary-400" />
+      <p className="text-xl font-bold text-slate-100">EduPlay</p>
+      <p className="mt-2 text-slate-300">{message}</p>
+    </div>
+  </div>
+);
 
 function AppContent() {
-  const { isUserLoggedIn, registerUser } = useGame();
-  const [appState, setAppState] = useState<AppState>(() => {
-    return isUserLoggedIn ? { screen: 'main' } : { screen: 'landing' };
-  });
-  const [isDarkMode] = useState(true);
+  const [screen, setScreen] = useState<AppScreen>('main');
+  const [activeSettings, setActiveSettings] = useState<QuizSettings>(DEFAULT_QUIZ_SETTINGS);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
+  const [result, setResult] = useState<QuizResult | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState('Запуск приложения...');
+  const loadingTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Register service worker for PWA
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        console.log('Service Worker registration failed (development mode)');
-      });
+    document.documentElement.classList.add('dark');
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      setLoadingMessage('');
+    }, 650);
+
+    return () => {
+      if (loadingTimeoutRef.current !== null) {
+        window.clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleQuizStart = (settings: QuizSettings) => {
+    if (loadingTimeoutRef.current !== null) {
+      window.clearTimeout(loadingTimeoutRef.current);
     }
 
-    // Set dark mode
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  // Navigation handlers
-  const handleLandingStart = () => {
-    setAppState({ screen: 'registration' });
+    setLoadingMessage('Подбираем вопросы...');
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      setActiveSettings(settings);
+      setActiveQuestions(createQuizSession(settings));
+      setResult(null);
+      setScreen('quiz');
+      setLoadingMessage('');
+    }, 320);
   };
 
-  const handleLandingContacts = () => {
-    // TODO: Implement contacts screen or redirect
-    console.log('Contacts');
-  };
-
-  const handleRegistrationComplete = (userData: {
-    email: string;
-    login: string;
-    password: string;
-  }) => {
-    registerUser(userData.email, userData.login, userData.password);
-    setAppState({ screen: 'main' });
-  };
-
-  const handleRegistrationBack = () => {
-    setAppState({ screen: 'landing' });
-  };
-
-  const handleStartQuiz = () => {
-    setAppState({ screen: 'quiz' });
+  const handleStartQuiz = (settings: QuizSettings) => {
+    scheduleQuizStart(settings);
   };
 
   const handleQuizComplete = (answers: Answer[], totalScore: number) => {
-    setAppState({
-      screen: 'results',
-      answers,
-      totalScore,
-    });
+    setResult({ answers, totalScore });
+    setScreen('results');
   };
 
   const handleRetryQuiz = () => {
-    setAppState({ screen: 'quiz' });
+    scheduleQuizStart(activeSettings);
   };
 
   const handleQuitToMain = () => {
-    setAppState({ screen: 'main' });
+    setScreen('main');
   };
 
   const handleViewLeaderboard = () => {
-    setAppState({ screen: 'leaderboard' });
+    setScreen('leaderboard');
   };
+
+  if (loadingMessage) {
+    return <LoadingScreen message={loadingMessage} />;
+  }
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
-      {appState.screen === 'landing' && (
-        <LandingPage
-          onStart={handleLandingStart}
-          onContacts={handleLandingContacts}
-        />
+      {screen === 'main' && (
+        <MainScreen onStartQuiz={handleStartQuiz} onViewLeaderboard={handleViewLeaderboard} />
       )}
 
-      {appState.screen === 'registration' && (
-        <RegistrationScreen
-          onRegistrationComplete={handleRegistrationComplete}
-          onBack={handleRegistrationBack}
-        />
-      )}
-
-      {appState.screen === 'main' && (
-        <MainScreen
-          onStartQuiz={handleStartQuiz}
-          onViewLeaderboard={handleViewLeaderboard}
-        />
-      )}
-
-      {appState.screen === 'quiz' && (
+      {screen === 'quiz' && (
         <QuizScreen
-          questions={QUESTIONS}
+          questions={activeQuestions}
+          settings={activeSettings}
           onQuit={handleQuitToMain}
           onComplete={handleQuizComplete}
         />
       )}
 
-      {appState.screen === 'results' && (
+      {screen === 'results' && result && (
         <ResultScreen
-          answers={appState.answers}
-          totalScore={appState.totalScore}
+          answers={result.answers}
+          totalScore={result.totalScore}
+          settings={activeSettings}
           onRetry={handleRetryQuiz}
           onQuit={handleQuitToMain}
         />
       )}
 
-      {appState.screen === 'leaderboard' && (
-        <LeaderboardScreen onBack={handleQuitToMain} />
-      )}
+      {screen === 'leaderboard' && <LeaderboardScreen onBack={handleQuitToMain} />}
     </div>
   );
 }

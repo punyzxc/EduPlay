@@ -1,20 +1,36 @@
-import { Question } from '../hooks/useQuiz';
-import { DIFFICULTY_MULTIPLIERS } from '../data/questions';
+import { SCORE_BY_DIFFICULTY, WRONG_ANSWER_PENALTY } from '../data/questions';
+import { Question } from '../types/quiz';
+
+const STREAK_STEP = 3;
+const STREAK_BONUS = 5;
+
+export interface ScoreBreakdown {
+  basePoints: number;
+  streakBonus: number;
+  totalPoints: number;
+}
 
 export const calculateScore = (
   question: Question,
   isCorrect: boolean,
-  timeTaken: number,
-): number => {
+  nextStreak: number,
+): ScoreBreakdown => {
   if (!isCorrect) {
-    return -5; // Penalty for wrong answer
+    return {
+      basePoints: WRONG_ANSWER_PENALTY,
+      streakBonus: 0,
+      totalPoints: WRONG_ANSWER_PENALTY,
+    };
   }
 
-  const baseMult = DIFFICULTY_MULTIPLIERS[question.difficulty];
-  // Time bonus: bonus for answering quickly
-  const timeBonus = Math.max(0, 30 - timeTaken) * 0.5;
+  const basePoints = SCORE_BY_DIFFICULTY[question.difficulty];
+  const streakBonus = nextStreak > 0 && nextStreak % STREAK_STEP === 0 ? STREAK_BONUS : 0;
 
-  return baseMult + timeBonus;
+  return {
+    basePoints,
+    streakBonus,
+    totalPoints: basePoints + streakBonus,
+  };
 };
 
 export const formatTime = (seconds: number): string => {
@@ -24,35 +40,32 @@ export const formatTime = (seconds: number): string => {
 };
 
 export const getPerformanceMessage = (correctAnswers: number, total: number): string => {
-  const percentage = (correctAnswers / total) * 100;
+  const percentage = total > 0 ? (correctAnswers / total) * 100 : 0;
 
   if (percentage === 100) {
-    return '🌟 Идеально! Вы мастер!';
+    return 'Идеально! Абсолютный результат.';
   }
   if (percentage >= 80) {
-    return '🎉 Отлично! Хороший результат!';
+    return 'Отличный уровень. Продолжайте в том же духе.';
   }
   if (percentage >= 60) {
-    return '👍 Хорошо! Продолжайте учиться!';
+    return 'Хороший результат. Еще немного практики.';
   }
   if (percentage >= 40) {
-    return '📚 Неплохо, но нужно практиковаться!';
+    return 'Неплохо, но есть пространство для роста.';
   }
-  return '💪 Не забывайте учиться! Вы справитесь!';
+  return 'Это только начало. Следующая попытка будет лучше.';
 };
 
 export const getStreakMessage = (streak: number): string => {
-  if (streak === 0) {
-    return 'Начните серию правильных ответов';
+  if (streak <= 0) {
+    return 'Начните серию правильных ответов.';
   }
-  if (streak < 3) {
-    return `Хорошее начало! Серия: ${streak}`;
+  if (streak < STREAK_STEP) {
+    return `Серия растет: ${streak}.`;
   }
-  if (streak < 5) {
-    return `Отличная серия! 🔥 ${streak}`;
+  if (streak < 6) {
+    return `Отлично! Серия ${streak}.`;
   }
-  if (streak < 10) {
-    return `Невероятно! 🚀 ${streak} подряд`;
-  }
-  return `Легендарно! 💫 ${streak} правильных ответов подряд`;
+  return `Мощная серия: ${streak} подряд.`;
 };

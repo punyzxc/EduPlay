@@ -16,25 +16,23 @@ export const Timer: React.FC<TimerProps> = ({
   const [timeLeft, setTimeLeft] = useState(duration);
 
   useEffect(() => {
-    if (!isActive) return;
+    setTimeLeft(duration);
+  }, [duration]);
 
-    if (timeLeft <= 0) {
-      onTimeUp();
-      return;
-    }
+  useEffect(() => {
+    if (!isActive || timeLeft <= 0) return;
 
-    const timer = setInterval(() => {
+    const timer = setTimeout(() => {
       setTimeLeft((prev) => {
-        const newTime = prev - 1;
-        if (newTime <= 0) {
+        if (prev <= 1) {
           onTimeUp();
           return 0;
         }
-        return newTime;
+        return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, [timeLeft, isActive, onTimeUp]);
 
   // Calculate percentage for visual indicator

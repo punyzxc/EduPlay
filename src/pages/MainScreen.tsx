@@ -1,253 +1,159 @@
-import React, { useState } from 'react';
-import { Header, Button, Card, ProgressBar, UserProfileModal } from '../components';
+import React, { useMemo, useState } from 'react';
+import { Button, Card, CategoryIcon, DifficultyIcon, Header, ProgressBar } from '../components';
+import {
+  DEFAULT_QUIZ_SETTINGS,
+  DIFFICULTY_LABELS,
+  QUIZ_CATEGORIES,
+  getCategoryById,
+} from '../data/questions';
 import { useGame } from '../context/GameContext';
+import { DifficultyFilter, QuizSettings } from '../types/quiz';
 
 interface MainScreenProps {
-  onStartQuiz: () => void;
+  onStartQuiz: (settings: QuizSettings) => void;
   onViewLeaderboard: () => void;
 }
 
-export const MainScreen: React.FC<MainScreenProps> = ({ onStartQuiz, onViewLeaderboard }) => {
-  const { score, level, xp, user } = useGame();
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const currentLevelXP = xp % 100;
-  const totalXPToNextLevel = 100;
+const difficultyOptions: DifficultyFilter[] = ['all', 'easy', 'medium', 'hard'];
 
-  const getAvatarEmoji = (avatarId: string): string => {
-    const avatars: { [key: string]: string } = {
-      '1': '👨‍💻',
-      '2': '👩‍💻',
-      '3': '🧑‍🚀',
-      '4': '🧙‍♂️',
-      '5': '🦸‍♂️',
-      '6': '🎓',
-    };
-    return avatars[avatarId] || '👨‍💻';
+export const MainScreen: React.FC<MainScreenProps> = ({ onStartQuiz, onViewLeaderboard }) => {
+  const { score, level, xp } = useGame();
+  const [selectedCategory, setSelectedCategory] = useState(DEFAULT_QUIZ_SETTINGS.categoryId);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>(
+    DEFAULT_QUIZ_SETTINGS.difficulty,
+  );
+
+  const currentLevelXP = xp % 100;
+
+  const selectedCategoryMeta = useMemo(
+    () => getCategoryById(selectedCategory),
+    [selectedCategory],
+  );
+
+  const handleStart = () => {
+    onStartQuiz({
+      categoryId: selectedCategory,
+      difficulty: selectedDifficulty,
+      questionCount: DEFAULT_QUIZ_SETTINGS.questionCount,
+    });
   };
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Background */}
       <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 -z-10" />
 
-      {/* Header with Profile Button */}
-      <div className="relative z-10 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 sm:py-6 border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm sticky top-0">
-        <Header title="EduPlay" showStats={true} />
-        
-        {user && (
-          <button
-            onClick={() => setShowProfileModal(true)}
-            className="ml-auto text-4xl hover:scale-110 transition-transform"
-            title={`Профиль: ${user.login}`}
-          >
-            {getAvatarEmoji(user.avatar)}
-          </button>
-        )}
-      </div>
+      <Header title="EduPlay" subtitle="Выберите режим и начните викторину" showStats={true} />
 
-      <div className="flex-1 overflow-auto px-4 py-6 sm:py-8">
-        <div className="max-w-2xl mx-auto space-y-6 pb-20">
-          {/* Welcome Hero Card */}
-          <Card
-            variant="gradient"
-            size="lg"
-            className="animate-slideUp text-center relative overflow-hidden"
-          >
-            {/* Decorative elements */}
-            <div className="absolute top-0 right-0 w-40 h-40 bg-primary-500/10 rounded-full blur-3xl -z-10" />
-            <div className="absolute bottom-0 left-0 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl -z-10" />
-
+      <div className="flex-1 overflow-auto px-4 py-6 pb-20">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <Card variant="gradient" size="md">
             <div className="space-y-4">
-              <h2 className="text-4xl sm:text-5xl font-bold font-display">
-                <span className="text-gradient">
-                  Превратите обучение в игру
-                </span>
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
+                Режим игры
               </h2>
-
-              <p className="text-slate-300 text-lg leading-relaxed max-w-md mx-auto">
-                Отвечайте на вопросы, зарабатывайте очки и поднимайтесь в рейтинге вместе с другими игроками!
+              <p className="text-slate-300">
+                В каждом раунде 10 вопросов. Очки: Easy +10, Medium +20, Hard +30, ошибка -5.
               </p>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-700/50">
-                <div className="glass p-4 rounded-xl text-center">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Level
-                  </p>
-                  <p className="text-3xl font-bold text-primary-400">{level}</p>
-                  <p className="text-xs text-slate-500 mt-1">Уровень</p>
-                </div>
-
-                <div className="glass p-4 rounded-xl text-center">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Score
-                  </p>
-                  <p className="text-3xl font-bold text-success-400">
-                    {score.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">Очки</p>
-                </div>
-
-                <div className="glass p-4 rounded-xl text-center">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    Total XP
-                  </p>
-                  <p className="text-3xl font-bold text-cyan-400">{xp}</p>
-                  <p className="text-xs text-slate-500 mt-1">Опыт</p>
-                </div>
-              </div>
             </div>
           </Card>
 
-          {/* Progress to next level */}
-          <Card variant="subtle" size="md">
+          <Card variant="default" size="md">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold text-slate-100 font-display">
-                  Прогресс до уровня {level + 1}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {totalXPToNextLevel - currentLevelXP} очков до следующего уровня
-                </p>
-              </div>
-
-              <ProgressBar
-                current={currentLevelXP}
-                max={totalXPToNextLevel}
-                color="primary"
-                size="lg"
-                animated={true}
-              />
-
-              <div className="flex justify-between items-center pt-2">
-                <span className="text-xs font-mono text-slate-400">
-                  {currentLevelXP} / {totalXPToNextLevel}
-                </span>
-                <span className="text-xs font-semibold text-primary-400 uppercase tracking-wider">
-                  {Math.round((currentLevelXP / totalXPToNextLevel) * 100)}%
-                </span>
+              <h3 className="text-lg font-bold text-slate-100 uppercase tracking-wider">
+                Категория
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {QUIZ_CATEGORIES.map((category) => {
+                  const isActive = selectedCategory === category.id;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(category.id)}
+                      className={`rounded-xl border p-4 text-left transition-all duration-200 ${
+                        isActive
+                          ? 'border-primary-400 bg-primary-500/20 shadow-lg shadow-primary-500/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl" aria-hidden="true">
+                          {category.icon}
+                        </span>
+                        <CategoryIcon categoryId={category.id} className="text-primary-300" />
+                      </div>
+                      <p className="font-semibold text-slate-100">{category.label}</p>
+                      <p className="text-xs text-slate-400 mt-1">{category.description}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </Card>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-            <Button
-              onClick={onStartQuiz}
-              variant="primary"
-              size="lg"
-              className="animate-scaleIn"
-              icon="🚀"
-            >
-              Начать Викторину
-            </Button>
-
-            <Button
-              onClick={onViewLeaderboard}
-              variant="secondary"
-              size="lg"
-              className="animate-scaleIn"
-              icon="🏆"
-            >
-              Таблица Лидеров
-            </Button>
-          </div>
-
-          {/* Features Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Scoring System */}
-            <Card variant="default" size="md">
-              <div className="space-y-3">
-                <h4 className="text-lg font-bold text-slate-100 font-display flex items-center gap-2">
-                  ⚡ Система Очков
-                </h4>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <span className="text-success-400">✓</span>
-                    <span>Easy: +10 очков</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-success-400">✓</span>
-                    <span>Medium: +20 очков</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-success-400">✓</span>
-                    <span>Hard: +30 очков</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-danger-400">✗</span>
-                    <span>Ошибка: -5 очков</span>
-                  </li>
-                </ul>
+          <Card variant="default" size="md">
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-100 uppercase tracking-wider">
+                Сложность
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {difficultyOptions.map((difficulty) => {
+                  const isActive = selectedDifficulty === difficulty;
+                  return (
+                    <button
+                      key={difficulty}
+                      type="button"
+                      onClick={() => setSelectedDifficulty(difficulty)}
+                      className={`rounded-lg border px-3 py-3 transition-all duration-200 ${
+                        isActive
+                          ? 'border-success-400 bg-success-500/20 text-success-100'
+                          : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-2">
+                        {difficulty !== 'all' && (
+                          <DifficultyIcon difficulty={difficulty} className="text-current" />
+                        )}
+                        <span className="font-semibold">{DIFFICULTY_LABELS[difficulty]}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </Card>
+            </div>
+          </Card>
 
-            {/* Daily Leaderboard */}
-            <Card variant="default" size="md">
-              <div className="space-y-3">
-                <h4 className="text-lg font-bold text-slate-100 font-display flex items-center gap-2">
-                  🏅 Ежедневный Рейтинг
-                </h4>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <span className="text-primary-400">•</span>
-                    <span>Топ-10 за 24 часа</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-primary-400">•</span>
-                    <span>Накопление очков</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-primary-400">•</span>
-                    <span>Сброс в 00:00 UTC</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-primary-400">•</span>
-                    <span>Реал-тайм обновление</span>
-                  </li>
-                </ul>
-              </div>
-            </Card>
-          </div>
-
-          {/* Tips Section */}
-          <Card
-            variant="gradient"
-            size="md"
-            className="border border-warning-500/30 bg-gradient-to-r from-warning-500/10 to-orange-500/10"
-          >
+          <Card variant="subtle" size="md">
             <div className="space-y-3">
-              <h4 className="text-lg font-bold text-warning-300 font-display flex items-center gap-2">
-                💡 Советы для Успеха
-              </h4>
-              <ul className="space-y-2 text-sm text-slate-200">
-                <li className="flex items-start gap-3">
-                  <span className="text-warning-400 text-lg flex-shrink-0">⚡</span>
-                  <span>Ответьте быстрее → больше бонус-очков за время</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-warning-400 text-lg flex-shrink-0">📈</span>
-                  <span>Каждый уровень требует 100 XP</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-warning-400 text-lg flex-shrink-0">🏆</span>
-                  <span>Конкурируйте в ежедневном рейтинге топ-10</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-warning-400 text-lg flex-shrink-0">🔄</span>
-                  <span>Сохраняйте имя для отслеживания в рейтинге</span>
-                </li>
-              </ul>
+              <div className="flex items-center justify-between">
+                <p className="text-sm uppercase tracking-wider text-slate-400">Текущий прогресс</p>
+                <p className="font-mono text-primary-300">{currentLevelXP}/100 XP</p>
+              </div>
+              <ProgressBar current={currentLevelXP} max={100} color="primary" size="lg" />
+              <p className="text-sm text-slate-300">
+                Уровень {level}, общий счет {score}.
+              </p>
+            </div>
+          </Card>
+
+          <Card variant="glass" size="md">
+            <div className="space-y-4">
+              <p className="text-slate-300">
+                Выбрано: <span className="font-semibold text-slate-100">{selectedCategoryMeta.label}</span> •{' '}
+                <span className="font-semibold text-slate-100">{DIFFICULTY_LABELS[selectedDifficulty]}</span>
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button onClick={handleStart} variant="primary" size="lg" icon="▶">
+                  Играть
+                </Button>
+                <Button onClick={onViewLeaderboard} variant="secondary" size="lg" icon="🏆">
+                  Лидерборд
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
       </div>
-
-      {/* User Profile Modal */}
-      <UserProfileModal
-        isOpen={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-      />
     </div>
   );
 };

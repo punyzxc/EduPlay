@@ -64,22 +64,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Game Stats State
   const [score, setScore] = useState(() => {
     const saved = localStorage.getItem('eduplay_score');
-    return saved ? parseInt(saved) : 0;
+    return saved ? parseInt(saved, 10) : 0;
   });
 
   const [level, setLevel] = useState(() => {
     const saved = localStorage.getItem('eduplay_level');
-    return saved ? parseInt(saved) : 1;
+    return saved ? parseInt(saved, 10) : 1;
   });
 
   const [xp, setXP] = useState(() => {
     const saved = localStorage.getItem('eduplay_xp');
-    return saved ? parseInt(saved) : 0;
+    return saved ? parseInt(saved, 10) : 0;
   });
 
   const [streak, setStreak] = useState(() => {
     const saved = localStorage.getItem('eduplay_streak');
-    return saved ? parseInt(saved) : 0;
+    return saved ? parseInt(saved, 10) : 0;
   });
 
   // Achievements State
@@ -151,16 +151,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addXP = (xpPoints: number) => {
-    const newXP = xp + xpPoints;
-    setXP(newXP);
+    setXP((previousXP) => {
+      const nextXP = previousXP + xpPoints;
+      const nextLevel = Math.floor(nextXP / 100) + 1;
 
-    // Level up every 100 XP
-    const newLevel = Math.floor(newXP / 100) + 1;
-    if (newLevel > level) {
-      setLevel(newLevel);
-      // Auto-add achievement for leveling up
-      checkAndAddLevelUpAchievements(newLevel);
-    }
+      setLevel((previousLevel) => {
+        if (nextLevel > previousLevel) {
+          checkAndAddLevelUpAchievements(nextLevel);
+          return nextLevel;
+        }
+        return previousLevel;
+      });
+
+      return nextXP;
+    });
   };
 
   const resetGame = () => {

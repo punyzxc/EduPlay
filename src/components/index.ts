@@ -4,3 +4,4 @@ export { ProgressBar } from './ProgressBar';
 export { Header } from './Header';
 export { Timer } from './Timer';
 export { UserProfileModal } from './UserProfileModal';
+export { CategoryIcon, DifficultyIcon } from './QuizIcons';
