@@ -5,6 +5,7 @@ interface TimerProps {
   onTimeUp: () => void;
   isActive?: boolean;
   compact?: boolean;
+  onTick?: (timeLeft: number) => void;
 }
 
 export const Timer: React.FC<TimerProps> = ({
@@ -12,12 +13,18 @@ export const Timer: React.FC<TimerProps> = ({
   onTimeUp,
   isActive = true,
   compact = false,
+  onTick,
 }) => {
   const [timeLeft, setTimeLeft] = useState(duration);
 
   useEffect(() => {
     setTimeLeft(duration);
-  }, [duration]);
+    onTick?.(duration);
+  }, [duration, onTick]);
+
+  useEffect(() => {
+    onTick?.(timeLeft);
+  }, [timeLeft, onTick]);
 
   useEffect(() => {
     if (!isActive || timeLeft <= 0) return;

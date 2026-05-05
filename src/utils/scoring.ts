@@ -1,35 +1,51 @@
-import { SCORE_BY_DIFFICULTY, WRONG_ANSWER_PENALTY } from '../data/questions';
+import { MAX_SCORE_BY_DIFFICULTY, WRONG_PENALTY_BY_DIFFICULTY } from '../data/questions';
 import { Question } from '../types/quiz';
 
-const STREAK_STEP = 3;
-const STREAK_BONUS = 5;
+const QUICK_ERROR_SECONDS = 2;
+const QUICK_ERROR_PENALTY = -4;
+const ERROR_STREAK_PENALTY_STEP = -2;
 
 export interface ScoreBreakdown {
   basePoints: number;
-  streakBonus: number;
+  speedFactor: number;
+  antiRandomPenalty: number;
   totalPoints: number;
 }
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 export const calculateScore = (
   question: Question,
   isCorrect: boolean,
-  nextStreak: number,
+  remainingTime: number,
+  totalTime: number,
+  errorStreak: number,
+  timeTaken: number,
 ): ScoreBreakdown => {
-  if (!isCorrect) {
+  if (isCorrect) {
+    const maxPoints = MAX_SCORE_BY_DIFFICULTY[question.difficulty];
+    const normalized = totalTime > 0 ? remainingTime / totalTime : 0;
+    const safeFactor = clamp(normalized, 0, 1);
+    const points = Math.max(1, Math.round(maxPoints * safeFactor));
+
     return {
-      basePoints: WRONG_ANSWER_PENALTY,
-      streakBonus: 0,
-      totalPoints: WRONG_ANSWER_PENALTY,
+      basePoints: points,
+      speedFactor: safeFactor,
+      antiRandomPenalty: 0,
+      totalPoints: points,
     };
   }
 
-  const basePoints = SCORE_BY_DIFFICULTY[question.difficulty];
-  const streakBonus = nextStreak > 0 && nextStreak % STREAK_STEP === 0 ? STREAK_BONUS : 0;
+  const basePenalty = WRONG_PENALTY_BY_DIFFICULTY[question.difficulty];
+  const quickPenalty = timeTaken <= QUICK_ERROR_SECONDS ? QUICK_ERROR_PENALTY : 0;
+  const streakPenalty = errorStreak > 1 ? ERROR_STREAK_PENALTY_STEP * (errorStreak - 1) : 0;
+  const totalPenalty = basePenalty + quickPenalty + streakPenalty;
 
   return {
-    basePoints,
-    streakBonus,
-    totalPoints: basePoints + streakBonus,
+    basePoints: basePenalty,
+    speedFactor: 0,
+    antiRandomPenalty: quickPenalty + streakPenalty,
+    totalPoints: totalPenalty,
   };
 };
 
@@ -59,10 +75,10 @@ export const getPerformanceMessage = (correctAnswers: number, total: number): st
 
 export const getStreakMessage = (streak: number): string => {
   if (streak <= 0) {
-    return 'Начните серию правильных ответов.';
+    return 'Начните новую серию правильных ответов.';
   }
-  if (streak < STREAK_STEP) {
-    return `Серия растет: ${streak}.`;
+  if (streak < 3) {
+    return `Хороший старт: серия ${streak}.`;
   }
   if (streak < 6) {
     return `Отлично! Серия ${streak}.`;

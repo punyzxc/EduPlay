@@ -35,13 +35,17 @@ export const DIFFICULTY_LABELS: Record<DifficultyFilter, string> = {
   hard: 'Hard',
 };
 
-export const SCORE_BY_DIFFICULTY: Record<Difficulty, number> = {
-  easy: 10,
-  medium: 20,
-  hard: 30,
+export const MAX_SCORE_BY_DIFFICULTY: Record<Difficulty, number> = {
+  easy: 5,
+  medium: 7,
+  hard: 10,
 };
 
-export const WRONG_ANSWER_PENALTY = -5;
+export const WRONG_PENALTY_BY_DIFFICULTY: Record<Difficulty, number> = {
+  easy: -10,
+  medium: -15,
+  hard: -20,
+};
 
 export const DEFAULT_QUIZ_SETTINGS: QuizSettings = {
   categoryId: 'history',

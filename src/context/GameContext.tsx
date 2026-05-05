@@ -1,43 +1,48 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { ACHIEVEMENT_DEFINITIONS, getAchievementDefinition } from '../data/achievements';
+import { AVATAR_PRESETS } from '../data/avatars';
+import { setPlayerName } from '../utils/dailyLeaderboard';
+import { Achievement, QuizResultPayload, UserProfile, UserStats } from '../types/user';
 
-// User Profile Interface
-export interface UserProfile {
-  id: string;
-  email: string;
-  login: string;
-  password: string; // In production, this should be hashed server-side
-  avatar: string; // Avatar ID (e.g., '1', '2', '3')
-  nickname: string; // Display nickname (can have special styling from achievements)
-  isRegistered: boolean;
-  registeredAt: string; // Timestamp
-}
+const USERS_STORAGE_KEY = 'eduplay_users_v2';
+const SESSION_STORAGE_KEY = 'eduplay_session_v2';
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Achievement/Reward Interface
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  unlockedAt?: string;
-  reward?: {
-    nicknameStyle?: 'rainbow' | 'gold' | 'platinum' | 'diamond';
-    avatarAccessory?: 'academic-hat' | 'crown' | 'halo' | 'medal';
-  };
+const defaultStats = (): UserStats => ({
+  totalScore: 0,
+  totalXP: 0,
+  level: 1,
+  currentStreak: 0,
+  bestStreak: 0,
+  gamesPlayed: 0,
+  totalAnswers: 0,
+  correctAnswers: 0,
+  bestScore: 0,
+});
+
+interface AuthResult {
+  success: boolean;
+  error?: string;
 }
 
 export interface GameContextType {
-  // User Profile
   user: UserProfile | null;
-  registerUser: (email: string, login: string, password: string) => void;
-  updateUserProfile: (profile: Partial<UserProfile>) => void;
+  registerUser: (email: string, login: string, password: string, avatar?: string) => AuthResult;
+  loginUser: (identity: string, password: string) => AuthResult;
+  updateUserProfile: (profile: Partial<UserProfile>) => AuthResult;
   isUserLoggedIn: boolean;
   logout: () => void;
 
-  // Game Stats
   score: number;
   level: number;
   xp: number;
   streak: number;
+  gamesPlayed: number;
+  totalAnswers: number;
+  correctAnswers: number;
+  bestScore: number;
+  accuracy: number;
+
   setScore: (score: number) => void;
   setLevel: (level: number) => void;
   setXP: (xp: number) => void;
@@ -46,197 +51,406 @@ export interface GameContextType {
   addXP: (xp: number) => void;
   resetGame: () => void;
 
-  // Achievements
   achievements: Achievement[];
   addAchievement: (achievement: Achievement) => void;
   getAchievements: () => Achievement[];
+  achievementQueue: Achievement[];
+  dismissAchievement: (achievementId: string) => void;
+  recordQuizResult: (payload: QuizResultPayload) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
+const parseJson = <T,>(value: string | null, fallback: T): T => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const migrateLegacyState = (): { users: UserProfile[]; sessionUserId: string | null } => {
+  const legacyUser = parseJson<Record<string, string> | null>(localStorage.getItem('eduplay_user'), null);
+  if (!legacyUser) {
+    return { users: [], sessionUserId: null };
+  }
+
+  const xp = parseInt(localStorage.getItem('eduplay_xp') || '0', 10);
+  const score = parseInt(localStorage.getItem('eduplay_score') || '0', 10);
+  const level = parseInt(localStorage.getItem('eduplay_level') || '1', 10);
+  const streak = parseInt(localStorage.getItem('eduplay_streak') || '0', 10);
+  const achievements = parseJson<Achievement[]>(localStorage.getItem('eduplay_achievements'), []);
+
+  const nowIso = new Date().toISOString();
+  const migratedUser: UserProfile = {
+    id: legacyUser.id || `user_${Date.now()}`,
+    email: legacyUser.email,
+    username: legacyUser.login || legacyUser.username || 'Player',
+    login: legacyUser.login || legacyUser.username || 'Player',
+    password: legacyUser.password,
+    avatar: legacyUser.avatar || AVATAR_PRESETS[0].id,
+    createdAt: legacyUser.createdAt || legacyUser.registeredAt || nowIso,
+    updatedAt: nowIso,
+    stats: {
+      ...defaultStats(),
+      totalScore: score,
+      totalXP: xp,
+      level: Math.max(level, Math.floor(xp / 100) + 1),
+      currentStreak: streak,
+      bestStreak: streak,
+    },
+    achievements: Array.isArray(achievements) ? achievements : [],
+  };
+
+  return { users: [migratedUser], sessionUserId: migratedUser.id };
+};
+
+const getInitialState = (): { users: UserProfile[]; sessionUserId: string | null } => {
+  const savedUsers = parseJson<UserProfile[] | null>(localStorage.getItem(USERS_STORAGE_KEY), null);
+  const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+  if (savedUsers && Array.isArray(savedUsers) && savedUsers.length > 0) {
+    return {
+      users: savedUsers,
+      sessionUserId: savedSession && savedUsers.some((user) => user.id === savedSession) ? savedSession : null,
+    };
+  }
+
+  return migrateLegacyState();
+};
+
+const checkAchievementUnlocks = (
+  user: UserProfile,
+  payload: QuizResultPayload,
+): Achievement[] => {
+  const unlocked = new Set(user.achievements.map((achievement) => achievement.id));
+  const candidates: string[] = [];
+
+  if (user.stats.gamesPlayed >= 1) candidates.push('first-step');
+  if (user.stats.gamesPlayed >= 10) candidates.push('student-10');
+  if (user.stats.gamesPlayed >= 50) candidates.push('master-50');
+  if (payload.totalAnswers > 0 && payload.correctAnswers === payload.totalAnswers) candidates.push('flawless');
+  if (payload.fastestCorrectAnswerTime !== null && payload.fastestCorrectAnswerTime <= 2) candidates.push('light-speed');
+  if (payload.highestStreak >= 5) candidates.push('streak-5');
+
+  return candidates
+    .filter((id) => !unlocked.has(id))
+    .map((id) => getAchievementDefinition(id))
+    .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition))
+    .map((definition) => ({
+      ...definition,
+      unlockedAt: new Date().toISOString(),
+    }));
+};
+
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // User Profile State
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('eduplay_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const initialState = useMemo(getInitialState, []);
+  const [users, setUsers] = useState<UserProfile[]>(initialState.users);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(initialState.sessionUserId);
+  const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
 
-  // Game Stats State
-  const [score, setScore] = useState(() => {
-    const saved = localStorage.getItem('eduplay_score');
-    return saved ? parseInt(saved, 10) : 0;
-  });
+  const user = useMemo(
+    () => users.find((candidate) => candidate.id === sessionUserId) ?? null,
+    [users, sessionUserId],
+  );
 
-  const [level, setLevel] = useState(() => {
-    const saved = localStorage.getItem('eduplay_level');
-    return saved ? parseInt(saved, 10) : 1;
-  });
+  const patchCurrentUser = useCallback((updater: (current: UserProfile) => UserProfile) => {
+    setUsers((previous) =>
+      previous.map((candidate) => (candidate.id === sessionUserId ? updater(candidate) : candidate)),
+    );
+  }, [sessionUserId]);
 
-  const [xp, setXP] = useState(() => {
-    const saved = localStorage.getItem('eduplay_xp');
-    return saved ? parseInt(saved, 10) : 0;
-  });
+  useEffect(() => {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  }, [users]);
 
-  const [streak, setStreak] = useState(() => {
-    const saved = localStorage.getItem('eduplay_streak');
-    return saved ? parseInt(saved, 10) : 0;
-  });
+  useEffect(() => {
+    if (sessionUserId) {
+      localStorage.setItem(SESSION_STORAGE_KEY, sessionUserId);
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, [sessionUserId]);
 
-  // Achievements State
-  const [achievements, setAchievements] = useState<Achievement[]>(() => {
-    const saved = localStorage.getItem('eduplay_achievements');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Save user to localStorage
   useEffect(() => {
     if (user) {
-      localStorage.setItem('eduplay_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('eduplay_user');
+      setPlayerName(user.login);
     }
   }, [user]);
 
-  // Save game stats to localStorage
-  useEffect(() => {
-    localStorage.setItem('eduplay_score', score.toString());
-  }, [score]);
+  const registerUser = (
+    email: string,
+    login: string,
+    password: string,
+    avatar: string = AVATAR_PRESETS[0].id,
+  ): AuthResult => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedLogin = login.trim();
 
-  useEffect(() => {
-    localStorage.setItem('eduplay_level', level.toString());
-  }, [level]);
+    if (!normalizedEmail || !normalizedLogin || !password.trim()) {
+      return { success: false, error: 'Заполните все поля.' };
+    }
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return { success: false, error: 'Некорректный email.' };
+    }
+    if (normalizedLogin.length < 3) {
+      return { success: false, error: 'Username должен быть минимум 3 символа.' };
+    }
+    if (password.length < 6) {
+      return { success: false, error: 'Пароль должен быть минимум 6 символов.' };
+    }
 
-  useEffect(() => {
-    localStorage.setItem('eduplay_xp', xp.toString());
-  }, [xp]);
+    if (users.some((candidate) => candidate.email.toLowerCase() === normalizedEmail)) {
+      return { success: false, error: 'Пользователь с таким email уже существует.' };
+    }
 
-  useEffect(() => {
-    localStorage.setItem('eduplay_streak', streak.toString());
-  }, [streak]);
+    if (users.some((candidate) => candidate.login.toLowerCase() === normalizedLogin.toLowerCase())) {
+      return { success: false, error: 'Этот логин уже занят.' };
+    }
 
-  // Save achievements to localStorage
-  useEffect(() => {
-    localStorage.setItem('eduplay_achievements', JSON.stringify(achievements));
-  }, [achievements]);
-
-  // User Management Functions
-  const registerUser = (email: string, login: string, password: string) => {
+    const now = new Date().toISOString();
     const newUser: UserProfile = {
       id: `user_${Date.now()}`,
-      email,
-      login,
-      password, // Note: In production, hash this on backend
-      avatar: '1', // Default avatar
-      nickname: login, // Default nickname
-      isRegistered: true,
-      registeredAt: new Date().toISOString(),
+      email: normalizedEmail,
+      username: normalizedLogin,
+      login: normalizedLogin,
+      password,
+      avatar,
+      createdAt: now,
+      updatedAt: now,
+      stats: defaultStats(),
+      achievements: [],
     };
-    setUser(newUser);
+
+    setUsers((previous) => [...previous, newUser]);
+    setSessionUserId(newUser.id);
+    return { success: true };
   };
 
-  const updateUserProfile = (profile: Partial<UserProfile>) => {
-    if (user) {
-      setUser({ ...user, ...profile });
+  const loginUser = (identity: string, password: string): AuthResult => {
+    const normalizedIdentity = identity.trim().toLowerCase();
+    if (!normalizedIdentity || !password.trim()) {
+      return { success: false, error: 'Заполните логин и пароль.' };
     }
+    const target = users.find(
+      (candidate) =>
+        candidate.email.toLowerCase() === normalizedIdentity ||
+        candidate.login.toLowerCase() === normalizedIdentity,
+    );
+
+    if (!target) {
+      return { success: false, error: 'Пользователь не найден.' };
+    }
+
+    if (target.password !== password) {
+      return { success: false, error: 'Неверный пароль.' };
+    }
+
+    setUsers((previous) =>
+      previous.map((candidate) =>
+        candidate.id === target.id
+          ? { ...candidate, updatedAt: new Date().toISOString() }
+          : candidate,
+      ),
+    );
+    setSessionUserId(target.id);
+    return { success: true };
+  };
+
+  const updateUserProfile = (profile: Partial<UserProfile>): AuthResult => {
+    if (!user) return { success: false, error: 'Пользователь не авторизован.' };
+
+    const nextEmail = profile.email?.trim().toLowerCase();
+    const nextLogin = (profile.login ?? profile.username)?.trim();
+
+    if (nextLogin !== undefined && nextLogin.length < 3) {
+      return { success: false, error: 'Username должен быть минимум 3 символа.' };
+    }
+    if (nextEmail !== undefined && !EMAIL_REGEX.test(nextEmail)) {
+      return { success: false, error: 'Некорректный email.' };
+    }
+
+    if (nextEmail && users.some((candidate) => candidate.id !== user.id && candidate.email.toLowerCase() === nextEmail)) {
+      return { success: false, error: 'Этот email уже используется.' };
+    }
+
+    if (nextLogin && users.some((candidate) => candidate.id !== user.id && candidate.login.toLowerCase() === nextLogin.toLowerCase())) {
+      return { success: false, error: 'Этот логин уже занят.' };
+    }
+
+    patchCurrentUser((current) => ({
+      ...current,
+      ...profile,
+      email: nextEmail ?? current.email,
+      login: nextLogin ?? current.login,
+      username: nextLogin ?? current.username,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    return { success: true };
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('eduplay_user');
+    setSessionUserId(null);
+    setAchievementQueue([]);
   };
 
-  // Game Functions
+  const setScore = (nextScore: number) => {
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: { ...current.stats, totalScore: nextScore },
+    }));
+  };
+
   const addScore = (points: number) => {
-    setScore((prev) => prev + points);
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: { ...current.stats, totalScore: current.stats.totalScore + points },
+    }));
+  };
+
+  const setXP = (nextXP: number) => {
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: {
+        ...current.stats,
+        totalXP: nextXP,
+        level: Math.max(1, Math.floor(nextXP / 100) + 1),
+      },
+    }));
   };
 
   const addXP = (xpPoints: number) => {
-    setXP((previousXP) => {
-      const nextXP = previousXP + xpPoints;
-      const nextLevel = Math.floor(nextXP / 100) + 1;
-
-      setLevel((previousLevel) => {
-        if (nextLevel > previousLevel) {
-          checkAndAddLevelUpAchievements(nextLevel);
-          return nextLevel;
-        }
-        return previousLevel;
-      });
-
-      return nextXP;
+    if (!user) return;
+    patchCurrentUser((current) => {
+      const totalXP = current.stats.totalXP + xpPoints;
+      return {
+        ...current,
+        stats: {
+          ...current.stats,
+          totalXP,
+          level: Math.max(1, Math.floor(totalXP / 100) + 1),
+        },
+      };
     });
   };
 
+  const setLevel = (nextLevel: number) => {
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: {
+        ...current.stats,
+        level: Math.max(1, nextLevel),
+      },
+    }));
+  };
+
+  const setStreak = (nextStreak: number) => {
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: {
+        ...current.stats,
+        currentStreak: nextStreak,
+        bestStreak: Math.max(current.stats.bestStreak, nextStreak),
+      },
+    }));
+  };
+
   const resetGame = () => {
-    setScore(0);
-    setLevel(1);
-    setXP(0);
-    setStreak(0);
+    if (!user) return;
+    patchCurrentUser((current) => ({
+      ...current,
+      stats: defaultStats(),
+      achievements: [],
+    }));
   };
 
-  // Achievement Functions
   const addAchievement = (achievement: Achievement) => {
-    if (!achievements.find((a) => a.id === achievement.id)) {
-      setAchievements([...achievements, achievement]);
+    if (!user) return;
+    patchCurrentUser((current) => {
+      if (current.achievements.some((item) => item.id === achievement.id)) {
+        return current;
+      }
+      return {
+        ...current,
+        achievements: [...current.achievements, achievement],
+      };
+    });
+    setAchievementQueue((queue) => [...queue, achievement]);
+  };
+
+  const recordQuizResult = (payload: QuizResultPayload) => {
+    if (!user) return;
+
+    let unlockedNow: Achievement[] = [];
+    patchCurrentUser((current) => {
+      const updatedStats: UserStats = {
+        ...current.stats,
+        gamesPlayed: current.stats.gamesPlayed + 1,
+        totalAnswers: current.stats.totalAnswers + payload.totalAnswers,
+        correctAnswers: current.stats.correctAnswers + payload.correctAnswers,
+        bestScore: Math.max(current.stats.bestScore, payload.totalScore),
+        bestStreak: Math.max(current.stats.bestStreak, payload.highestStreak),
+        lastPlayedAt: new Date().toISOString(),
+      };
+
+      const updatedUser: UserProfile = {
+        ...current,
+        stats: updatedStats,
+      };
+
+      unlockedNow = checkAchievementUnlocks(updatedUser, payload);
+      if (unlockedNow.length > 0) {
+        return {
+          ...updatedUser,
+          achievements: [...updatedUser.achievements, ...unlockedNow],
+        };
+      }
+
+      return updatedUser;
+    });
+
+    if (unlockedNow.length > 0) {
+      setAchievementQueue((queue) => [...queue, ...unlockedNow]);
     }
   };
 
-  const getAchievements = () => achievements;
-
-  const checkAndAddLevelUpAchievements = (newLevel: number) => {
-    const levelAchievements: { [key: number]: Achievement } = {
-      10: {
-        id: 'level_10',
-        name: '🚀 Рокетомен',
-        description: 'Достигли уровня 10',
-        icon: '🚀',
-        unlockedAt: new Date().toISOString(),
-        reward: {
-          nicknameStyle: 'gold',
-        },
-      },
-      25: {
-        id: 'level_25',
-        name: '⭐ Звезда',
-        description: 'Достигли уровня 25',
-        icon: '⭐',
-        unlockedAt: new Date().toISOString(),
-        reward: {
-          nicknameStyle: 'platinum',
-          avatarAccessory: 'crown',
-        },
-      },
-      50: {
-        id: 'level_50',
-        name: '💎 Легенда',
-        description: 'Достигли уровня 50',
-        icon: '💎',
-        unlockedAt: new Date().toISOString(),
-        reward: {
-          nicknameStyle: 'rainbow',
-          avatarAccessory: 'halo',
-        },
-      },
-    };
-
-    if (levelAchievements[newLevel]) {
-      addAchievement(levelAchievements[newLevel]);
-    }
+  const dismissAchievement = (achievementId: string) => {
+    setAchievementQueue((queue) => {
+      const index = queue.findIndex((item) => item.id === achievementId);
+      if (index === -1) return queue;
+      return [...queue.slice(0, index), ...queue.slice(index + 1)];
+    });
   };
+
+  const accuracy = user?.stats.totalAnswers
+    ? Math.round((user.stats.correctAnswers / user.stats.totalAnswers) * 100)
+    : 0;
 
   const value: GameContextType = {
-    // User Profile
     user,
     registerUser,
+    loginUser,
     updateUserProfile,
     isUserLoggedIn: user !== null,
     logout,
 
-    // Game Stats
-    score,
-    level,
-    xp,
-    streak,
+    score: user?.stats.totalScore ?? 0,
+    level: user?.stats.level ?? 1,
+    xp: user?.stats.totalXP ?? 0,
+    streak: user?.stats.currentStreak ?? 0,
+    gamesPlayed: user?.stats.gamesPlayed ?? 0,
+    totalAnswers: user?.stats.totalAnswers ?? 0,
+    correctAnswers: user?.stats.correctAnswers ?? 0,
+    bestScore: user?.stats.bestScore ?? 0,
+    accuracy,
+
     setScore,
     setLevel,
     setXP,
@@ -245,10 +459,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addXP,
     resetGame,
 
-    // Achievements
-    achievements,
+    achievements: user?.achievements ?? [],
     addAchievement,
-    getAchievements,
+    getAchievements: () => user?.achievements ?? [],
+    achievementQueue,
+    dismissAchievement,
+    recordQuizResult,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
@@ -261,3 +477,5 @@ export const useGame = (): GameContextType => {
   }
   return context;
 };
+
+export { ACHIEVEMENT_DEFINITIONS };

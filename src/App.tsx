@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { GameProvider } from './context/GameContext';
-import { MainScreen, QuizScreen, ResultScreen, LeaderboardScreen } from './pages';
+import { AchievementToast } from './components';
+import { GameProvider, useGame } from './context/GameContext';
 import { DEFAULT_QUIZ_SETTINGS, createQuizSession } from './data/questions';
+import {
+  LeaderboardScreen,
+  MainScreen,
+  ProfileScreen,
+  QuizScreen,
+  RegistrationScreen,
+  ResultScreen,
+} from './pages';
 import { Answer, Question, QuizSettings } from './types/quiz';
 
-type AppScreen = 'main' | 'quiz' | 'results' | 'leaderboard';
+type AppScreen = 'auth' | 'main' | 'quiz' | 'results' | 'leaderboard' | 'profile';
 
 interface QuizResult {
   answers: Answer[];
@@ -25,8 +33,30 @@ const LoadingScreen = ({ message }: LoadingScreenProps) => (
   </div>
 );
 
+const getHighestStreak = (answers: Answer[]): number => {
+  let maxStreak = 0;
+  let streak = 0;
+  answers.forEach((answer) => {
+    if (answer.isCorrect) {
+      streak += 1;
+      maxStreak = Math.max(maxStreak, streak);
+    } else {
+      streak = 0;
+    }
+  });
+  return maxStreak;
+};
+
 function AppContent() {
-  const [screen, setScreen] = useState<AppScreen>('main');
+  const {
+    isUserLoggedIn,
+    logout,
+    achievementQueue,
+    dismissAchievement,
+    recordQuizResult,
+  } = useGame();
+
+  const [screen, setScreen] = useState<AppScreen>('auth');
   const [activeSettings, setActiveSettings] = useState<QuizSettings>(DEFAULT_QUIZ_SETTINGS);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [result, setResult] = useState<QuizResult | null>(null);
@@ -37,6 +67,7 @@ function AppContent() {
     document.documentElement.classList.add('dark');
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoadingMessage('');
+      setScreen(isUserLoggedIn ? 'main' : 'auth');
     }, 650);
 
     return () => {
@@ -44,7 +75,20 @@ function AppContent() {
         window.clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isUserLoggedIn]);
+
+  useEffect(() => {
+    if (!isUserLoggedIn) {
+      setScreen('auth');
+      setResult(null);
+      setActiveQuestions([]);
+      return;
+    }
+
+    if (screen === 'auth') {
+      setScreen('main');
+    }
+  }, [isUserLoggedIn, screen]);
 
   const scheduleQuizStart = (settings: QuizSettings) => {
     if (loadingTimeoutRef.current !== null) {
@@ -62,10 +106,37 @@ function AppContent() {
   };
 
   const handleStartQuiz = (settings: QuizSettings) => {
+    if (!isUserLoggedIn) {
+      setScreen('auth');
+      return;
+    }
     scheduleQuizStart(settings);
   };
 
   const handleQuizComplete = (answers: Answer[], totalScore: number) => {
+    const correctAnswers = answers.filter((answer) => answer.isCorrect).length;
+    const totalAnswers = answers.length;
+    const averageAnswerTime = totalAnswers
+      ? answers.reduce((sum, answer) => sum + answer.timeTaken, 0) / totalAnswers
+      : 0;
+    const fastestCorrectAnswerTime =
+      answers
+        .filter((answer) => answer.isCorrect)
+        .reduce<number | null>(
+          (minTime, answer) =>
+            minTime === null ? answer.timeTaken : Math.min(minTime, answer.timeTaken),
+          null,
+        );
+
+    recordQuizResult({
+      totalScore,
+      correctAnswers,
+      totalAnswers,
+      averageAnswerTime,
+      fastestCorrectAnswerTime,
+      highestStreak: getHighestStreak(answers),
+    });
+
     setResult({ answers, totalScore });
     setScreen('results');
   };
@@ -82,15 +153,40 @@ function AppContent() {
     setScreen('leaderboard');
   };
 
+  const handleOpenProfile = () => {
+    setScreen('profile');
+  };
+
+  const handleLogout = () => {
+    logout();
+  };
+
   if (loadingMessage) {
     return <LoadingScreen message={loadingMessage} />;
   }
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
+      <div className="fixed right-3 top-3 z-[70] w-[320px] max-w-[calc(100vw-1.5rem)] space-y-2">
+        {achievementQueue.slice(0, 3).map((achievement, index) => (
+          <div key={`${achievement.id}-${index}`}>
+            <AchievementToast achievement={achievement} onClose={dismissAchievement} />
+          </div>
+        ))}
+      </div>
+
+      {screen === 'auth' && <RegistrationScreen onAuthComplete={() => setScreen('main')} />}
+
       {screen === 'main' && (
-        <MainScreen onStartQuiz={handleStartQuiz} onViewLeaderboard={handleViewLeaderboard} />
+        <MainScreen
+          onStartQuiz={handleStartQuiz}
+          onViewLeaderboard={handleViewLeaderboard}
+          onOpenProfile={handleOpenProfile}
+          onLogout={handleLogout}
+        />
       )}
+
+      {screen === 'profile' && <ProfileScreen onBack={handleQuitToMain} onLogout={handleLogout} />}
 
       {screen === 'quiz' && (
         <QuizScreen

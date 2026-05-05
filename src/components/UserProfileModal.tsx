@@ -65,7 +65,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
     }
 
     // Update password
-    updateUserProfile({ password: newPassword });
+    const updateResult = updateUserProfile({ password: newPassword });
+    if (!updateResult.success) {
+      setPasswordError(updateResult.error || 'Не удалось обновить пароль');
+      return;
+    }
     setPasswordSuccess('Пароль успешно изменён!');
     setCurrentPassword('');
     setNewPassword('');
@@ -156,7 +160,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
               Дата регистрации
             </p>
             <p className="text-sm text-slate-300">
-              {new Date(user.registeredAt).toLocaleDateString('ru-RU', {
+              {new Date(user.createdAt).toLocaleDateString('ru-RU', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',

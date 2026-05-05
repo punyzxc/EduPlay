@@ -16,7 +16,7 @@ interface LeaderboardScreenProps {
 }
 
 export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ onBack }) => {
-  const { score, level } = useGame();
+  const { score, level, user } = useGame();
   const [dailyLeaderboard, setDailyLeaderboard] = useState<DailyLeaderboardEntry[]>([]);
   const [showNameInput, setShowNameInput] = useState(false);
   const [currentPlayerRank, setCurrentPlayerRank] = useState<DailyLeaderboardEntry | null>(null);
@@ -25,13 +25,16 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ onBack }) 
 
   useEffect(() => {
     loadDailyLeaderboard();
+    if (user?.login) {
+      setNameInput(user.login);
+    }
     // Обновлять рейтинг каждые 5 секунд (реальное время)
     const interval = setInterval(() => {
       loadDailyLeaderboard();
       setTimeUntilReset(getTimeUntilReset());
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.login]);
 
   const loadDailyLeaderboard = () => {
     const leaderboard = getDailyLeaderboard();

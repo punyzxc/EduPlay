@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Card, CategoryIcon, DifficultyIcon, Header, ProgressBar } from '../components';
+import {
+  AvatarBadge,
+  Button,
+  Card,
+  CategoryIcon,
+  DifficultyIcon,
+  Header,
+  ProgressBar,
+} from '../components';
 import {
   DEFAULT_QUIZ_SETTINGS,
   DIFFICULTY_LABELS,
@@ -12,12 +20,19 @@ import { DifficultyFilter, QuizSettings } from '../types/quiz';
 interface MainScreenProps {
   onStartQuiz: (settings: QuizSettings) => void;
   onViewLeaderboard: () => void;
+  onOpenProfile: () => void;
+  onLogout: () => void;
 }
 
 const difficultyOptions: DifficultyFilter[] = ['all', 'easy', 'medium', 'hard'];
 
-export const MainScreen: React.FC<MainScreenProps> = ({ onStartQuiz, onViewLeaderboard }) => {
-  const { score, level, xp } = useGame();
+export const MainScreen: React.FC<MainScreenProps> = ({
+  onStartQuiz,
+  onViewLeaderboard,
+  onOpenProfile,
+  onLogout,
+}) => {
+  const { score, level, xp, user } = useGame();
   const [selectedCategory, setSelectedCategory] = useState(DEFAULT_QUIZ_SETTINGS.categoryId);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyFilter>(
     DEFAULT_QUIZ_SETTINGS.difficulty,
@@ -46,13 +61,35 @@ export const MainScreen: React.FC<MainScreenProps> = ({ onStartQuiz, onViewLeade
 
       <div className="flex-1 overflow-auto px-4 py-6 pb-20">
         <div className="max-w-3xl mx-auto space-y-6">
+          {user && (
+            <Card variant="glass" size="md">
+              <div className="flex items-center gap-3">
+                <AvatarBadge avatarId={user.avatar} username={user.login} size="lg" />
+                <div className="flex-1">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">Аккаунт</p>
+                  <p className="text-xl font-bold text-slate-100">{user.login}</p>
+                  <p className="text-sm text-slate-300">{user.email}</p>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button onClick={onOpenProfile} variant="outline" size="sm" icon="👤">
+                    Профиль
+                  </Button>
+                  <Button onClick={onLogout} variant="ghost" size="sm" icon="↩">
+                    Выйти
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
           <Card variant="gradient" size="md">
             <div className="space-y-4">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
                 Режим игры
               </h2>
               <p className="text-slate-300">
-                В каждом раунде 10 вопросов. Очки: Easy +10, Medium +20, Hard +30, ошибка -5.
+                В каждом раунде 10 вопросов. Очки зависят от скорости: Easy до +5, Medium до +7, Hard до +10.
+                Ошибки: Easy -10, Medium -15, Hard -20.
               </p>
             </div>
           </Card>

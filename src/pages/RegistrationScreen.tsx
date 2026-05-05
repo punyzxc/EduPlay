@@ -1,289 +1,263 @@
-import React, { useState } from 'react';
-import { Card, Button } from '../components';
+import React, { useMemo, useState } from 'react';
+import { AVATAR_PRESETS } from '../data/avatars';
+import { AvatarBadge, Button, Card } from '../components';
+import { useGame } from '../context/GameContext';
 
 interface RegistrationScreenProps {
-  onRegistrationComplete: (userData: { email: string; login: string; password: string }) => void;
-  onBack: () => void;
+  onAuthComplete: () => void;
 }
 
-export const RegistrationScreen: React.FC<RegistrationScreenProps> = ({
-  onRegistrationComplete,
-  onBack,
-}) => {
-  const [email, setEmail] = useState('');
-  const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+type AuthTab = 'login' | 'register';
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ onAuthComplete }) => {
+  const { registerUser, loginUser } = useGame();
+  const [tab, setTab] = useState<AuthTab>('login');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
+  const [registerForm, setRegisterForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    avatar: AVATAR_PRESETS[0].id,
+  });
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim()) {
-      newErrors.email = 'Email не может быть пустым';
-    } else if (!emailRegex.test(email)) {
-      newErrors.email = 'Некорректный формат email';
-    }
+  const [loginForm, setLoginForm] = useState({
+    identity: '',
+    password: '',
+  });
 
-    // Login validation
-    if (!login.trim()) {
-      newErrors.login = 'Логин не может быть пустым';
-    } else if (login.length < 3) {
-      newErrors.login = 'Логин должен содержать минимум 3 символа';
-    } else if (login.length > 20) {
-      newErrors.login = 'Логин не должен превышать 20 символов';
-    } else if (!/^[a-zA-Z0-9_-]+$/.test(login)) {
-      newErrors.login = 'Логин может содержать только буквы, цифры, _ и -';
-    }
+  const registerValidationError = useMemo(() => {
+    if (!registerForm.username.trim()) return 'Введите username.';
+    if (registerForm.username.trim().length < 3) return 'Username должен быть минимум 3 символа.';
+    if (!registerForm.email.trim()) return 'Введите email.';
+    if (!emailRegex.test(registerForm.email.trim())) return 'Некорректный email.';
+    if (!registerForm.password) return 'Введите пароль.';
+    if (registerForm.password.length < 6) return 'Пароль должен быть минимум 6 символов.';
+    if (registerForm.password !== registerForm.confirmPassword) return 'Пароли не совпадают.';
+    return '';
+  }, [registerForm]);
 
-    // Password validation
-    if (!password) {
-      newErrors.password = 'Пароль не может быть пустым';
-    } else if (password.length < 6) {
-      newErrors.password = 'Пароль должен содержать минимум 6 символов';
-    } else if (password.length > 50) {
-      newErrors.password = 'Пароль не должен превышать 50 символов';
-    }
+  const loginValidationError = useMemo(() => {
+    if (!loginForm.identity.trim()) return 'Введите email или username.';
+    if (!loginForm.password.trim()) return 'Введите пароль.';
+    return '';
+  }, [loginForm]);
 
-    // Confirm password validation
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Пароли не совпадают';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
+  const handleRegisterSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (registerValidationError) {
+      setError(registerValidationError);
       return;
     }
 
     setIsLoading(true);
+    const result = registerUser(
+      registerForm.email.trim(),
+      registerForm.username.trim(),
+      registerForm.password,
+      registerForm.avatar,
+    );
+    setIsLoading(false);
 
-    // Simulate API call
-    setTimeout(() => {
-      onRegistrationComplete({
-        email: email.trim(),
-        login: login.trim(),
-        password,
-      });
-      setIsLoading(false);
-    }, 500);
+    if (!result.success) {
+      setError(result.error || 'Не удалось создать аккаунт.');
+      return;
+    }
+
+    onAuthComplete();
+  };
+
+  const handleLoginSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (loginValidationError) {
+      setError(loginValidationError);
+      return;
+    }
+
+    setIsLoading(true);
+    const result = loginUser(loginForm.identity.trim(), loginForm.password);
+    setIsLoading(false);
+
+    if (!result.success) {
+      setError(result.error || 'Не удалось войти.');
+      return;
+    }
+
+    onAuthComplete();
   };
 
   const inputClass =
-    'w-full bg-slate-800 text-white px-4 py-3 rounded-lg border border-slate-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 outline-none transition-all placeholder-slate-500';
-
-  const errorClass = 'text-danger-400 text-xs font-semibold mt-1 flex items-center gap-1';
+    'w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Background */}
-      <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 -z-10" />
-
-      {/* Animated background elements */}
-      <div className="fixed inset-0 overflow-hidden -z-5">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-success-500/10 rounded-full blur-3xl animate-pulse" />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute left-0 top-0 h-64 w-64 rounded-full bg-primary-500/20 blur-3xl" />
+        <div className="absolute right-0 bottom-0 h-64 w-64 rounded-full bg-success-500/20 blur-3xl" />
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-          {/* Back button */}
-          <button
-            onClick={onBack}
-            className="mb-8 text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-2 font-semibold"
-          >
-            ← Вернуться назад
-          </button>
-
-          {/* Registration Card */}
-          <Card variant="gradient" size="md" className="space-y-6">
-            {/* Header */}
+      <div className="flex-1 px-4 py-8 sm:py-12 flex items-center justify-center">
+        <div className="w-full max-w-xl">
+          <Card variant="gradient" size="lg" className="space-y-6">
             <div className="text-center space-y-2">
-              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-success-400 font-display">
-                Регистрация
+              <h1 className="text-3xl sm:text-4xl font-bold font-display text-transparent bg-clip-text bg-gradient-to-r from-primary-300 to-cyan-300">
+                EduPlay Account
               </h1>
-              <p className="text-slate-300">Создайте аккаунт для начала</p>
+              <p className="text-slate-300">Регистрация и вход работают офлайн на вашем устройстве.</p>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email Field */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                  📧 Email
-                </label>
-                <input
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email) {
-                      setErrors({ ...errors, email: '' });
-                    }
-                  }}
-                  className={`${inputClass} ${errors.email ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500/30' : ''}`}
-                  disabled={isLoading}
-                />
-                {errors.email && (
-                  <p className={errorClass}>
-                    <span>⚠️</span> {errors.email}
-                  </p>
-                )}
-              </div>
-
-              {/* Login Field */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                  👤 Логин (Никнейм)
-                </label>
-                <input
-                  type="text"
-                  placeholder="your_login"
-                  value={login}
-                  onChange={(e) => {
-                    setLogin(e.target.value);
-                    if (errors.login) {
-                      setErrors({ ...errors, login: '' });
-                    }
-                  }}
-                  className={`${inputClass} ${errors.login ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500/30' : ''}`}
-                  disabled={isLoading}
-                  maxLength={20}
-                />
-                <div className="flex items-center justify-between mt-1">
-                  {errors.login && (
-                    <p className={errorClass}>
-                      <span>⚠️</span> {errors.login}
-                    </p>
-                  )}
-                  <p className="text-xs text-slate-500 ml-auto">
-                    {login.length}/20
-                  </p>
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                  🔐 Пароль
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (errors.password) {
-                        setErrors({ ...errors, password: '' });
-                      }
-                    }}
-                    className={`${inputClass} pr-12 ${errors.password ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500/30' : ''}`}
-                    disabled={isLoading}
-                    maxLength={50}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors text-xl"
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className={errorClass}>
-                    <span>⚠️</span> {errors.password}
-                  </p>
-                )}
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                  🔐 Подтвердите пароль
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      if (errors.confirmPassword) {
-                        setErrors({ ...errors, confirmPassword: '' });
-                      }
-                    }}
-                    className={`${inputClass} pr-12 ${errors.confirmPassword ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500/30' : ''}`}
-                    disabled={isLoading}
-                    maxLength={50}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors text-xl"
-                  >
-                    {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                </div>
-                {errors.confirmPassword && (
-                  <p className={errorClass}>
-                    <span>⚠️</span> {errors.confirmPassword}
-                  </p>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                fullWidth
-                icon="✅"
-                disabled={isLoading}
-                className={isLoading ? 'opacity-75' : ''}
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('login');
+                  setError('');
+                }}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  tab === 'login'
+                    ? 'bg-primary-500/20 text-primary-200'
+                    : 'text-slate-300 hover:text-slate-100'
+                }`}
               >
-                {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
-              </Button>
-            </form>
-
-            {/* Requirements */}
-            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-              <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">
-                📋 Требования к паролю:
-              </p>
-              <ul className="space-y-2 text-xs text-slate-400">
-                <li className="flex items-center gap-2">
-                  <span className={password.length >= 6 ? 'text-success-400' : 'text-slate-500'}>
-                    {password.length >= 6 ? '✓' : '○'}
-                  </span>
-                  Минимум 6 символов
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className={password === confirmPassword && confirmPassword ? 'text-success-400' : 'text-slate-500'}>
-                    {password === confirmPassword && confirmPassword ? '✓' : '○'}
-                  </span>
-                  Пароли совпадают
-                </li>
-              </ul>
+                Вход
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('register');
+                  setError('');
+                }}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  tab === 'register'
+                    ? 'bg-success-500/20 text-success-200'
+                    : 'text-slate-300 hover:text-slate-100'
+                }`}
+              >
+                Регистрация
+              </button>
             </div>
-          </Card>
 
-          {/* Help text */}
-          <p className="text-center text-slate-400 text-sm mt-6">
-            Ваши данные будут сохранены безопасно на вашем устройстве
-          </p>
+            {tab === 'login' ? (
+              <form onSubmit={handleLoginSubmit} className="space-y-4 animate-fadeIn">
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Email или username</label>
+                  <input
+                    className={inputClass}
+                    value={loginForm.identity}
+                    onChange={(event) => setLoginForm((prev) => ({ ...prev, identity: event.target.value }))}
+                    placeholder="username или email"
+                    autoComplete="username"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Пароль</label>
+                  <input
+                    className={inputClass}
+                    value={loginForm.password}
+                    onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
+                    type="password"
+                    placeholder="Введите пароль"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <Button type="submit" fullWidth size="lg" loading={isLoading} icon="🔓">
+                  Войти
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegisterSubmit} className="space-y-4 animate-fadeIn">
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Username</label>
+                  <input
+                    className={inputClass}
+                    value={registerForm.username}
+                    onChange={(event) =>
+                      setRegisterForm((prev) => ({ ...prev, username: event.target.value }))
+                    }
+                    placeholder="Ваш username"
+                    autoComplete="username"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Email</label>
+                  <input
+                    className={inputClass}
+                    value={registerForm.email}
+                    onChange={(event) =>
+                      setRegisterForm((prev) => ({ ...prev, email: event.target.value }))
+                    }
+                    placeholder="name@email.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Пароль</label>
+                    <input
+                      className={inputClass}
+                      value={registerForm.password}
+                      onChange={(event) =>
+                        setRegisterForm((prev) => ({ ...prev, password: event.target.value }))
+                      }
+                      type="password"
+                      placeholder="Минимум 6 символов"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Подтверждение</label>
+                    <input
+                      className={inputClass}
+                      value={registerForm.confirmPassword}
+                      onChange={(event) =>
+                        setRegisterForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                      }
+                      type="password"
+                      placeholder="Повторите пароль"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-wider text-slate-400">Выбор аватара</label>
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                    {AVATAR_PRESETS.map((avatar) => (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => setRegisterForm((prev) => ({ ...prev, avatar: avatar.id }))}
+                        className={`rounded-xl border p-1.5 transition ${
+                          registerForm.avatar === avatar.id
+                            ? 'border-primary-400 bg-primary-500/20'
+                            : 'border-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        <AvatarBadge avatarId={avatar.id} username={registerForm.username || 'EP'} size="md" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Button type="submit" fullWidth size="lg" variant="success" loading={isLoading} icon="✅">
+                  Создать аккаунт
+                </Button>
+              </form>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-danger-500/50 bg-danger-500/10 p-3 text-sm font-semibold text-danger-300">
+                {error}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>

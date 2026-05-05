@@ -13,7 +13,8 @@ interface QuizScreenProps {
   onComplete: (answers: Answer[], totalScore: number) => void;
 }
 
-const QUESTION_TIME_LIMIT = 30;
+const QUESTION_TIME_LIMIT = 12;
+const NEXT_BUTTON_DELAY_MS = 900;
 
 const difficultyStyles = {
   easy: 'text-success-300 border-success-500/40 bg-success-500/15',
@@ -35,7 +36,9 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
   const [sessionScore, setSessionScore] = useState(0);
   const [questionStartedAt, setQuestionStartedAt] = useState(() => Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [streakAfterAnswer, setStreakAfterAnswer] = useState(0);
+  const [remainingTime, setRemainingTime] = useState(QUESTION_TIME_LIMIT);
+  const [errorStreak, setErrorStreak] = useState(0);
+  const [nextButtonLocked, setNextButtonLocked] = useState(false);
 
   const currentQuestion = quiz.currentQuestion;
   const selectedCategory = useMemo(() => getCategoryById(settings.categoryId), [settings.categoryId]);
@@ -45,30 +48,48 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
     return Math.max(0, Math.min(QUESTION_TIME_LIMIT, elapsed));
   };
 
+  const lockNextButton = () => {
+    setNextButtonLocked(true);
+    window.setTimeout(() => setNextButtonLocked(false), NEXT_BUTTON_DELAY_MS);
+  };
+
   const handleAnswer = (index: number) => {
     if (!currentQuestion || quiz.isAnswered || isSubmitting) return;
     setIsSubmitting(true);
 
+    const timeTaken = getTimeTaken();
     const isCorrect = index === currentQuestion.correctAnswer;
+    const nextErrorStreak = isCorrect ? 0 : errorStreak + 1;
     const nextStreak = isCorrect ? streak + 1 : 0;
-    const scoreResult = calculateScore(currentQuestion, isCorrect, nextStreak);
+
+    const scoreResult = calculateScore(
+      currentQuestion,
+      isCorrect,
+      remainingTime,
+      QUESTION_TIME_LIMIT,
+      nextErrorStreak,
+      timeTaken,
+    );
 
     addScore(scoreResult.totalPoints);
     if (scoreResult.totalPoints > 0) {
       addXP(scoreResult.totalPoints);
     }
-    setStreak(nextStreak);
 
+    setStreak(nextStreak);
+    setErrorStreak(nextErrorStreak);
     setSelectedAnswer(index);
     setFeedback(isCorrect ? 'correct' : 'incorrect');
     setScoreBreakdown(scoreResult);
     setSessionScore((previous) => previous + scoreResult.totalPoints);
-    setStreakAfterAnswer(nextStreak);
 
-    quiz.answerQuestion(index, getTimeTaken());
+    quiz.answerQuestion(index, timeTaken);
+    lockNextButton();
   };
 
   const handleNext = () => {
+    if (nextButtonLocked) return;
+
     if (quiz.isQuizComplete) {
       onComplete(quiz.answers, sessionScore);
       return;
@@ -79,8 +100,9 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
     setFeedback(null);
     setScoreBreakdown(null);
     setIsSubmitting(false);
-    setStreakAfterAnswer(0);
     setQuestionStartedAt(Date.now());
+    setRemainingTime(QUESTION_TIME_LIMIT);
+    setNextButtonLocked(false);
   };
 
   if (!currentQuestion) {
@@ -134,6 +156,7 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
               onTimeUp={() => handleAnswer(-1)}
               isActive={!quiz.isAnswered}
               compact={true}
+              onTick={setRemainingTime}
             />
           </Card>
 
@@ -207,18 +230,31 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
                     {scoreBreakdown.totalPoints}
                   </p>
                 </div>
-                {scoreBreakdown.streakBonus > 0 && (
-                  <p className="text-sm text-warning-300">
-                    Бонус за серию: +{scoreBreakdown.streakBonus} (серия {streakAfterAnswer})
+
+                {feedback === 'correct' && (
+                  <p className="text-sm text-slate-300">
+                    Очки зависят от скорости: множитель {Math.round(scoreBreakdown.speedFactor * 100)}%
                   </p>
                 )}
+
+                {scoreBreakdown.antiRandomPenalty < 0 && (
+                  <p className="text-sm text-warning-300">
+                    Анти-рандом штраф: {scoreBreakdown.antiRandomPenalty}
+                  </p>
+                )}
+
                 <Button
                   onClick={handleNext}
                   variant={feedback === 'correct' ? 'success' : 'secondary'}
                   size="md"
                   fullWidth
+                  disabled={nextButtonLocked}
                 >
-                  {quiz.isQuizComplete ? 'Завершить' : 'Следующий вопрос'}
+                  {nextButtonLocked
+                    ? 'Подождите...'
+                    : quiz.isQuizComplete
+                      ? 'Завершить'
+                      : 'Следующий вопрос'}
                 </Button>
               </div>
             </Card>
