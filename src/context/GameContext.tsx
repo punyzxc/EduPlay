@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ACHIEVEMENT_DEFINITIONS, getAchievementDefinition } from '../data/achievements';
-import { AVATAR_PRESETS } from '../data/avatars';
+import { AVATAR_PRESETS, getAvatarPreset } from '../data/avatars';
 import {
   BackendProfile,
+  fetchProfileFromBackend,
   loginUserInBackend,
   registerUserInBackend,
   SubmitScorePayload,
@@ -28,6 +29,12 @@ const defaultStats = (): UserStats => ({
   totalAnswers: 0,
   correctAnswers: 0,
   bestScore: 0,
+});
+
+const defaultProfileSettings = (): Record<string, string | number | boolean> => ({
+  theme: 'dark',
+  sound: true,
+  animations: true,
 });
 
 interface AuthResult {
@@ -80,6 +87,54 @@ const parseJson = <T,>(value: string | null, fallback: T): T => {
   }
 };
 
+const normalizeUserProfile = (candidate: UserProfile): UserProfile => {
+  const normalizedXP = Number.isFinite(candidate.stats?.totalXP) ? Math.max(0, candidate.stats.totalXP) : 0;
+  const normalizedLevel = Math.max(
+    1,
+    Number.isFinite(candidate.stats?.level)
+      ? candidate.stats.level
+      : Math.floor(normalizedXP / 100) + 1,
+  );
+
+  return {
+    ...candidate,
+    avatarColor: candidate.avatarColor ?? getAvatarPreset(candidate.avatar || AVATAR_PRESETS[0].id).from,
+    stats: {
+      ...defaultStats(),
+      ...(candidate.stats ?? {}),
+      totalXP: normalizedXP,
+      level: normalizedLevel,
+      bestStreak: Math.max(candidate.stats?.bestStreak ?? 0, candidate.stats?.currentStreak ?? 0),
+      lastPlayedAt: candidate.stats?.lastPlayedAt || undefined,
+    },
+    achievements: Array.isArray(candidate.achievements) ? candidate.achievements : [],
+    unlockedItems: Array.isArray(candidate.unlockedItems) ? candidate.unlockedItems : [],
+    profileSettings:
+      candidate.profileSettings && typeof candidate.profileSettings === 'object'
+        ? candidate.profileSettings
+        : defaultProfileSettings(),
+  };
+};
+
+const buildProfilePayload = (profile: UserProfile) => ({
+  username: profile.login,
+  email: profile.email,
+  avatar: profile.avatar,
+  avatarColor: profile.avatarColor ?? getAvatarPreset(profile.avatar || AVATAR_PRESETS[0].id).from,
+  password: profile.password,
+  level: profile.stats.level,
+  totalXP: profile.stats.totalXP,
+  currentStreak: profile.stats.currentStreak,
+  bestStreak: profile.stats.bestStreak,
+  gamesPlayed: profile.stats.gamesPlayed,
+  totalAnswers: profile.stats.totalAnswers,
+  correctAnswers: profile.stats.correctAnswers,
+  achievements: profile.achievements,
+  unlockedItems: profile.unlockedItems ?? [],
+  profileSettings: profile.profileSettings ?? defaultProfileSettings(),
+  lastPlayedAt: profile.stats.lastPlayedAt ?? '',
+});
+
 const migrateLegacyState = (): { users: UserProfile[]; sessionUserId: string | null } => {
   const legacyUser = parseJson<Record<string, string> | null>(localStorage.getItem('eduplay_user'), null);
   if (!legacyUser) {
@@ -100,6 +155,7 @@ const migrateLegacyState = (): { users: UserProfile[]; sessionUserId: string | n
     login: legacyUser.login || legacyUser.username || 'Player',
     password: legacyUser.password,
     avatar: legacyUser.avatar || AVATAR_PRESETS[0].id,
+    avatarColor: getAvatarPreset(legacyUser.avatar || AVATAR_PRESETS[0].id).from,
     createdAt: legacyUser.createdAt || legacyUser.registeredAt || nowIso,
     updatedAt: nowIso,
     stats: {
@@ -111,9 +167,11 @@ const migrateLegacyState = (): { users: UserProfile[]; sessionUserId: string | n
       bestStreak: streak,
     },
     achievements: Array.isArray(achievements) ? achievements : [],
+    unlockedItems: [],
+    profileSettings: defaultProfileSettings(),
   };
 
-  return { users: [migratedUser], sessionUserId: migratedUser.id };
+  return { users: [normalizeUserProfile(migratedUser)], sessionUserId: migratedUser.id };
 };
 
 const getInitialState = (): { users: UserProfile[]; sessionUserId: string | null } => {
@@ -121,9 +179,10 @@ const getInitialState = (): { users: UserProfile[]; sessionUserId: string | null
   const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
 
   if (savedUsers && Array.isArray(savedUsers) && savedUsers.length > 0) {
+    const normalizedUsers = savedUsers.map((entry) => normalizeUserProfile(entry));
     return {
-      users: savedUsers,
-      sessionUserId: savedSession && savedUsers.some((user) => user.id === savedSession) ? savedSession : null,
+      users: normalizedUsers,
+      sessionUserId: savedSession && normalizedUsers.some((user) => user.id === savedSession) ? savedSession : null,
     };
   }
 
@@ -182,7 +241,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const patchCurrentUser = useCallback((updater: (current: UserProfile) => UserProfile) => {
     setUsers((previous) =>
-      previous.map((candidate) => (candidate.id === sessionUserId ? updater(candidate) : candidate)),
+      previous.map((candidate) =>
+        candidate.id === sessionUserId ? normalizeUserProfile(updater(candidate)) : candidate,
+      ),
     );
   }, [sessionUserId]);
 
@@ -197,23 +258,37 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           candidate.login.toLowerCase() === normalizedLogin.toLowerCase(),
       );
 
-      return {
+      return normalizeUserProfile({
         id: localId,
         email: profile.email,
         username: normalizedLogin,
         login: normalizedLogin,
         password,
         avatar: profile.avatar || existing?.avatar || AVATAR_PRESETS[0].id,
+        avatarColor:
+          profile.avatarColor ||
+          existing?.avatarColor ||
+          getAvatarPreset(profile.avatar || existing?.avatar || AVATAR_PRESETS[0].id).from,
         createdAt: profile.createdAt || existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: profile.updatedAt || new Date().toISOString(),
         stats: {
           ...defaultStats(),
-          ...(existing?.stats ?? {}),
+          ...existing?.stats,
+          level: profile.level,
+          totalXP: profile.totalXP,
+          currentStreak: profile.currentStreak,
+          bestStreak: profile.bestStreak,
+          gamesPlayed: profile.gamesPlayed,
+          totalAnswers: profile.totalAnswers,
+          correctAnswers: profile.correctAnswers,
           totalScore: profile.totalScore,
           bestScore: profile.bestScore,
+          lastPlayedAt: profile.lastPlayedAt || existing?.stats?.lastPlayedAt,
         },
-        achievements: existing?.achievements ?? [],
-      };
+        achievements: profile.achievements ?? existing?.achievements ?? [],
+        unlockedItems: profile.unlockedItems ?? existing?.unlockedItems ?? [],
+        profileSettings: profile.profileSettings ?? existing?.profileSettings ?? defaultProfileSettings(),
+      });
     },
     [users],
   );
@@ -242,16 +317,79 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!user) return;
+    let isCancelled = false;
 
-    void syncProfileToBackend({
-      username: user.login,
+    void fetchProfileFromBackend({
       email: user.email,
-      avatar: user.avatar,
-      password: user.password,
-    }).catch(() => {
-      // Offline fallback: local state remains source of truth until backend is reachable.
-    });
-  }, [user?.id, user?.login, user?.email, user?.avatar, user?.password]);
+      username: user.login,
+    })
+      .then((profile) => {
+        if (isCancelled) return;
+        setUsers((previous) => {
+          const localId = `backend_${profile.id}`;
+          const normalizedLogin = profile.username || user.login || profile.email;
+          const existing = previous.find(
+            (candidate) =>
+              candidate.id === localId ||
+              candidate.email.toLowerCase() === profile.email.toLowerCase() ||
+              candidate.login.toLowerCase() === normalizedLogin.toLowerCase(),
+          );
+          const hydratedUser = normalizeUserProfile({
+            id: localId,
+            email: profile.email,
+            username: normalizedLogin,
+            login: normalizedLogin,
+            password: existing?.password ?? user.password,
+            avatar: profile.avatar || existing?.avatar || AVATAR_PRESETS[0].id,
+            avatarColor:
+              profile.avatarColor ||
+              existing?.avatarColor ||
+              getAvatarPreset(profile.avatar || existing?.avatar || AVATAR_PRESETS[0].id).from,
+            createdAt: profile.createdAt || existing?.createdAt || new Date().toISOString(),
+            updatedAt: profile.updatedAt || new Date().toISOString(),
+            stats: {
+              ...defaultStats(),
+              ...existing?.stats,
+              level: profile.level,
+              totalXP: profile.totalXP,
+              currentStreak: profile.currentStreak,
+              bestStreak: profile.bestStreak,
+              gamesPlayed: profile.gamesPlayed,
+              totalAnswers: profile.totalAnswers,
+              correctAnswers: profile.correctAnswers,
+              totalScore: profile.totalScore,
+              bestScore: profile.bestScore,
+              lastPlayedAt: profile.lastPlayedAt || existing?.stats?.lastPlayedAt,
+            },
+            achievements: profile.achievements ?? existing?.achievements ?? [],
+            unlockedItems: profile.unlockedItems ?? existing?.unlockedItems ?? [],
+            profileSettings: profile.profileSettings ?? existing?.profileSettings ?? defaultProfileSettings(),
+          });
+          const filtered = previous.filter((candidate) => candidate.id !== hydratedUser.id);
+          return [...filtered, hydratedUser];
+        });
+      })
+      .catch(() => {
+        // Backend unavailable: keep cached local state.
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    const timeout = window.setTimeout(() => {
+      void syncProfileToBackend(buildProfilePayload(user)).catch(() => {
+        // Offline fallback: local state remains source of truth until backend is reachable.
+      });
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user || pendingScoreSync.length === 0) return;
@@ -312,6 +450,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: normalizedEmail,
         password,
         avatar,
+        avatarColor: getAvatarPreset(avatar).from,
       });
       const newUser = buildLocalUserFromBackend(profile, password, normalizedLogin);
 
@@ -381,7 +520,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsers((previous) =>
       previous.map((candidate) =>
         candidate.id === target.id
-          ? { ...candidate, updatedAt: new Date().toISOString() }
+          ? normalizeUserProfile({ ...candidate, updatedAt: new Date().toISOString() })
           : candidate,
       ),
     );
@@ -416,6 +555,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: nextEmail ?? current.email,
       login: nextLogin ?? current.login,
       username: nextLogin ?? current.username,
+      avatarColor:
+        profile.avatarColor ??
+        (profile.avatar ? getAvatarPreset(profile.avatar).from : current.avatarColor),
       updatedAt: new Date().toISOString(),
     }));
 
@@ -499,6 +641,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...current,
       stats: defaultStats(),
       achievements: [],
+      unlockedItems: [],
     }));
   };
 
@@ -511,6 +654,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         ...current,
         achievements: [...current.achievements, achievement],
+        unlockedItems: Array.from(new Set([...(current.unlockedItems ?? []), achievement.id])),
       };
     });
     setAchievementQueue((queue) => [...queue, achievement]);
@@ -520,6 +664,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
 
     let unlockedNow: Achievement[] = [];
+    let updatedSnapshot: UserProfile | null = null;
     patchCurrentUser((current) => {
       const updatedStats: UserStats = {
         ...current.stats,
@@ -538,25 +683,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       unlockedNow = checkAchievementUnlocks(updatedUser, payload);
       if (unlockedNow.length > 0) {
-        return {
+        const nextUnlockedItems = Array.from(
+          new Set([...(updatedUser.unlockedItems ?? []), ...unlockedNow.map((item) => item.id)]),
+        );
+        updatedSnapshot = normalizeUserProfile({
           ...updatedUser,
           achievements: [...updatedUser.achievements, ...unlockedNow],
-        };
+          unlockedItems: nextUnlockedItems,
+        });
+        return updatedSnapshot;
       }
 
-      return updatedUser;
+      updatedSnapshot = normalizeUserProfile(updatedUser);
+      return updatedSnapshot;
     });
 
     if (unlockedNow.length > 0) {
       setAchievementQueue((queue) => [...queue, ...unlockedNow]);
     }
 
+    const snapshot = updatedSnapshot ?? user;
+
     const scorePayload: SubmitScorePayload = {
-      username: user.login,
-      email: user.email,
-      avatar: user.avatar,
+      ...buildProfilePayload(snapshot),
       score: payload.totalScore,
-      password: user.password,
       quizSessionId: payload.quizSessionId,
     };
 

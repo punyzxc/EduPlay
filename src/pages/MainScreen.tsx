@@ -25,6 +25,18 @@ interface MainScreenProps {
 }
 
 const difficultyOptions: DifficultyFilter[] = ['all', 'easy', 'medium', 'hard'];
+const desktopParticles = [
+  { left: '8%', top: '16%', duration: '11s', delay: '0s' },
+  { left: '19%', top: '28%', duration: '13s', delay: '1.8s' },
+  { left: '27%', top: '64%', duration: '14s', delay: '0.9s' },
+  { left: '36%', top: '10%', duration: '12s', delay: '2.2s' },
+  { left: '43%', top: '47%', duration: '10.5s', delay: '1.1s' },
+  { left: '52%', top: '78%', duration: '12.5s', delay: '2.6s' },
+  { left: '61%', top: '18%', duration: '13.5s', delay: '0.6s' },
+  { left: '69%', top: '53%', duration: '11.7s', delay: '2.8s' },
+  { left: '78%', top: '29%', duration: '14.2s', delay: '1.4s' },
+  { left: '86%', top: '68%', duration: '12.1s', delay: '0.3s' },
+];
 
 export const MainScreen: React.FC<MainScreenProps> = ({
   onStartQuiz,
@@ -50,17 +62,40 @@ export const MainScreen: React.FC<MainScreenProps> = ({
   };
 
   return (
-    <div className="app-shell min-h-screen">
+    <div className="app-shell relative isolate min-h-screen overflow-x-hidden">
       <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-8 top-24 h-52 w-52 rounded-full bg-sky-500/20 blur-3xl" />
         <div className="absolute -right-10 top-1/3 h-56 w-56 rounded-full bg-cyan-500/12 blur-3xl" />
       </div>
+      <div className="desktop-atmosphere">
+        <div className="desktop-grid-overlay" />
+        <div className="desktop-light-beam desktop-light-beam-left" />
+        <div className="desktop-light-beam desktop-light-beam-right" />
+        <div className="desktop-orb desktop-orb-a" />
+        <div className="desktop-orb desktop-orb-b" />
+        <div className="desktop-orb desktop-orb-c" />
+        <div className="desktop-shape desktop-shape-a" />
+        <div className="desktop-shape desktop-shape-b" />
+        {desktopParticles.map((particle, index) => (
+          <span
+            key={`${particle.left}-${particle.top}-${index}`}
+            className="desktop-particle"
+            style={{
+              left: particle.left,
+              top: particle.top,
+              animationDelay: particle.delay,
+              animationDuration: particle.duration,
+            }}
+          />
+        ))}
+      </div>
 
-      <Header title="EduPlay" subtitle="Играй, прокачивайся и соревнуйся" showStats />
+      <div className="relative z-10">
+        <Header title="EduPlay" subtitle="Играй, прокачивайся и соревнуйся" showStats />
 
-      <div className="mobile-content-padding flex-1 overflow-auto px-4 pb-6 pt-2">
-        <div className="mx-auto max-w-3xl space-y-4">
+        <div className="mobile-content-padding flex-1 overflow-auto px-4 pb-6 pt-2">
+          <div className="mx-auto max-w-3xl space-y-4">
           {user && (
             <Card variant="glass" size="md" className="surface-glow">
               <div className="flex items-center gap-3">
@@ -190,6 +225,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
               </div>
             </div>
           </Card>
+          </div>
         </div>
       </div>
     </div>

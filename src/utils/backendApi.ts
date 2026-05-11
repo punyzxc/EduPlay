@@ -1,10 +1,19 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
+export interface BackendAchievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlockedAt: string;
+}
+
 export interface BackendLeaderboardEntry {
   id: number;
   username: string;
   email: string;
   avatar: string;
+  avatarColor: string;
   totalScore: number;
   bestScore: number;
   dailyScore: number;
@@ -13,7 +22,20 @@ export interface BackendLeaderboardEntry {
   rank: number;
 }
 
-export interface BackendProfile extends BackendLeaderboardEntry {}
+export interface BackendProfile extends BackendLeaderboardEntry {
+  level: number;
+  totalXP: number;
+  currentStreak: number;
+  bestStreak: number;
+  gamesPlayed: number;
+  totalAnswers: number;
+  correctAnswers: number;
+  achievements: BackendAchievement[];
+  unlockedItems: string[];
+  profileSettings: Record<string, string | number | boolean>;
+  lastPlayedAt: string;
+  updatedAt: string;
+}
 
 interface LeaderboardResponse {
   items: BackendLeaderboardEntry[];
@@ -31,9 +53,21 @@ export interface SubmitScorePayload {
   username: string;
   email: string;
   avatar: string;
+  avatarColor?: string;
   score: number;
   password?: string;
   quizSessionId?: string;
+  level?: number;
+  totalXP?: number;
+  currentStreak?: number;
+  bestStreak?: number;
+  gamesPlayed?: number;
+  totalAnswers?: number;
+  correctAnswers?: number;
+  achievements?: BackendAchievement[];
+  unlockedItems?: string[];
+  profileSettings?: Record<string, string | number | boolean>;
+  lastPlayedAt?: string;
 }
 
 interface AuthPayload {
@@ -41,6 +75,7 @@ interface AuthPayload {
   email: string;
   password: string;
   avatar: string;
+  avatarColor?: string;
 }
 
 interface LoginPayload {
@@ -97,7 +132,9 @@ export const submitScoreToBackend = async (payload: SubmitScorePayload): Promise
   return data.item;
 };
 
-export const syncProfileToBackend = async (payload: Omit<SubmitScorePayload, 'score'>): Promise<BackendProfile> =>
+export const syncProfileToBackend = async (
+  payload: Omit<SubmitScorePayload, 'score' | 'quizSessionId'>,
+): Promise<BackendProfile> =>
   submitScoreToBackend({ ...payload, score: 0 });
 
 export const registerUserInBackend = async (payload: AuthPayload): Promise<BackendProfile> => {

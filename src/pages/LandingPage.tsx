@@ -170,6 +170,19 @@ const contacts = [
   },
 ];
 
+const desktopParticles = [
+  { left: '7%', top: '22%', duration: '10.8s', delay: '0.5s' },
+  { left: '18%', top: '40%', duration: '12.4s', delay: '1.7s' },
+  { left: '26%', top: '66%', duration: '13.2s', delay: '0.2s' },
+  { left: '35%', top: '18%', duration: '11.6s', delay: '2.3s' },
+  { left: '44%', top: '53%', duration: '14s', delay: '1.1s' },
+  { left: '53%', top: '74%', duration: '12.6s', delay: '2.6s' },
+  { left: '62%', top: '26%', duration: '11.9s', delay: '0.9s' },
+  { left: '70%', top: '58%', duration: '13.7s', delay: '1.9s' },
+  { left: '79%', top: '34%', duration: '12.1s', delay: '0.4s' },
+  { left: '88%', top: '70%', duration: '14.3s', delay: '2.9s' },
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   const installRef = useRef<HTMLElement | null>(null);
   const contactRef = useRef<HTMLElement | null>(null);
@@ -217,12 +230,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   };
 
   return (
-    <div className="app-shell relative min-h-screen overflow-x-hidden">
+    <div className="app-shell relative isolate min-h-screen overflow-x-hidden">
       <div className="fixed inset-0 -z-20 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-24 top-0 h-80 w-80 animate-pulseSoft rounded-full bg-sky-500/20 blur-3xl" />
         <div className="absolute -right-16 top-1/4 h-72 w-72 animate-pulseSoft rounded-full bg-cyan-400/12 blur-3xl" />
         <div className="absolute bottom-0 left-1/3 h-80 w-80 animate-pulseSoft rounded-full bg-emerald-500/14 blur-3xl" />
+      </div>
+      <div className="desktop-atmosphere">
+        <div className="desktop-grid-overlay" />
+        <div className="desktop-light-beam desktop-light-beam-left" />
+        <div className="desktop-light-beam desktop-light-beam-right" />
+        <div className="desktop-orb desktop-orb-a" />
+        <div className="desktop-orb desktop-orb-b" />
+        <div className="desktop-orb desktop-orb-c" />
+        <div className="desktop-shape desktop-shape-a" />
+        <div className="desktop-shape desktop-shape-b" />
+        {desktopParticles.map((particle, index) => (
+          <span
+            key={`${particle.left}-${particle.top}-${index}`}
+            className="desktop-particle"
+            style={{
+              left: particle.left,
+              top: particle.top,
+              animationDelay: particle.delay,
+              animationDuration: particle.duration,
+            }}
+          />
+        ))}
       </div>
 
       <div className="safe-top safe-bottom relative z-10">
@@ -260,7 +295,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                     Учёба как игра, <span className="text-gradient">результаты как в приложении</span>
                   </h1>
                   <p className="max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
-                    EduPlay — образовательный проект для геймификации обучения школьников. Проходи викторины,
+                    EduPlay - образовательный проект для геймификации обучения школьников. Проходи викторины,
                     зарабатывай очки, открывай достижения и соревнуйся в рейтинге каждый день.
                   </p>
                 </div>

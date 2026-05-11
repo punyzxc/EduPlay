@@ -1,9 +1,30 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
+const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const isIntegerInRange = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 
 export const validateSubmitScore = (request, response, next) => {
-  const { username, email, avatar, score, password, quizSessionId } = request.body ?? {};
+  const {
+    username,
+    email,
+    avatar,
+    avatarColor,
+    score,
+    password,
+    quizSessionId,
+    level,
+    totalXP,
+    currentStreak,
+    bestStreak,
+    gamesPlayed,
+    totalAnswers,
+    correctAnswers,
+    achievements,
+    unlockedItems,
+    profileSettings,
+    lastPlayedAt,
+  } = request.body ?? {};
 
   if (!isNonEmptyString(username) || username.trim().length < 3 || username.trim().length > 32) {
     response.status(400).json({
@@ -25,6 +46,14 @@ export const validateSubmitScore = (request, response, next) => {
     response.status(400).json({
       error: 'Invalid avatar',
       message: 'avatar обязателен и не должен превышать 32 символа.',
+    });
+    return;
+  }
+
+  if (avatarColor !== undefined && (typeof avatarColor !== 'string' || avatarColor.trim().length > 32)) {
+    response.status(400).json({
+      error: 'Invalid avatarColor',
+      message: 'avatarColor должен быть строкой длиной до 32 символов.',
     });
     return;
   }
@@ -76,20 +105,153 @@ export const validateSubmitScore = (request, response, next) => {
     return;
   }
 
+  if (level !== undefined && !isIntegerInRange(level, 1, 100000)) {
+    response.status(400).json({
+      error: 'Invalid level',
+      message: 'level должен быть целым числом от 1 до 100000.',
+    });
+    return;
+  }
+
+  if (totalXP !== undefined && !isIntegerInRange(totalXP, 0, 10000000)) {
+    response.status(400).json({
+      error: 'Invalid totalXP',
+      message: 'totalXP должен быть целым числом от 0 до 10000000.',
+    });
+    return;
+  }
+
+  if (currentStreak !== undefined && !isIntegerInRange(currentStreak, 0, 1000000)) {
+    response.status(400).json({
+      error: 'Invalid currentStreak',
+      message: 'currentStreak должен быть целым числом от 0 до 1000000.',
+    });
+    return;
+  }
+
+  if (bestStreak !== undefined && !isIntegerInRange(bestStreak, 0, 1000000)) {
+    response.status(400).json({
+      error: 'Invalid bestStreak',
+      message: 'bestStreak должен быть целым числом от 0 до 1000000.',
+    });
+    return;
+  }
+
+  if (gamesPlayed !== undefined && !isIntegerInRange(gamesPlayed, 0, 1000000)) {
+    response.status(400).json({
+      error: 'Invalid gamesPlayed',
+      message: 'gamesPlayed должен быть целым числом от 0 до 1000000.',
+    });
+    return;
+  }
+
+  if (totalAnswers !== undefined && !isIntegerInRange(totalAnswers, 0, 100000000)) {
+    response.status(400).json({
+      error: 'Invalid totalAnswers',
+      message: 'totalAnswers должен быть целым числом от 0 до 100000000.',
+    });
+    return;
+  }
+
+  if (correctAnswers !== undefined && !isIntegerInRange(correctAnswers, 0, 100000000)) {
+    response.status(400).json({
+      error: 'Invalid correctAnswers',
+      message: 'correctAnswers должен быть целым числом от 0 до 100000000.',
+    });
+    return;
+  }
+
+  if (achievements !== undefined) {
+    if (!Array.isArray(achievements) || achievements.length > 256) {
+      response.status(400).json({
+        error: 'Invalid achievements',
+        message: 'achievements должен быть массивом до 256 элементов.',
+      });
+      return;
+    }
+    const validAchievements = achievements.every((item) =>
+      isPlainObject(item) &&
+      isNonEmptyString(item.id) &&
+      isNonEmptyString(item.name) &&
+      isNonEmptyString(item.description) &&
+      isNonEmptyString(item.icon) &&
+      isNonEmptyString(item.unlockedAt),
+    );
+    if (!validAchievements) {
+      response.status(400).json({
+        error: 'Invalid achievements',
+        message: 'Каждое достижение должно содержать id, name, description, icon, unlockedAt.',
+      });
+      return;
+    }
+  }
+
+  if (unlockedItems !== undefined) {
+    if (
+      !Array.isArray(unlockedItems) ||
+      unlockedItems.length > 256 ||
+      !unlockedItems.every((item) => typeof item === 'string' && item.trim().length > 0 && item.trim().length <= 80)
+    ) {
+      response.status(400).json({
+        error: 'Invalid unlockedItems',
+        message: 'unlockedItems должен быть массивом строк (до 256 элементов).',
+      });
+      return;
+    }
+  }
+
+  if (profileSettings !== undefined) {
+    if (!isPlainObject(profileSettings)) {
+      response.status(400).json({
+        error: 'Invalid profileSettings',
+        message: 'profileSettings должен быть объектом.',
+      });
+      return;
+    }
+    const jsonSize = JSON.stringify(profileSettings).length;
+    if (jsonSize > 5000) {
+      response.status(400).json({
+        error: 'Invalid profileSettings',
+        message: 'profileSettings слишком большой.',
+      });
+      return;
+    }
+  }
+
+  if (lastPlayedAt !== undefined && (typeof lastPlayedAt !== 'string' || lastPlayedAt.trim().length > 64)) {
+    response.status(400).json({
+      error: 'Invalid lastPlayedAt',
+      message: 'lastPlayedAt должен быть строкой длиной до 64 символов.',
+    });
+    return;
+  }
+
   request.body = {
     username: username.trim(),
     email: email.trim().toLowerCase(),
     avatar: avatar.trim(),
     score,
+    ...(avatarColor !== undefined ? { avatarColor: avatarColor.trim() } : {}),
     ...(password !== undefined ? { password: password.trim() } : {}),
     ...(hasQuizSessionId ? { quizSessionId: quizSessionId.trim() } : {}),
+    ...(level !== undefined ? { level } : {}),
+    ...(totalXP !== undefined ? { totalXP } : {}),
+    ...(currentStreak !== undefined ? { currentStreak } : {}),
+    ...(bestStreak !== undefined ? { bestStreak } : {}),
+    ...(gamesPlayed !== undefined ? { gamesPlayed } : {}),
+    ...(totalAnswers !== undefined ? { totalAnswers } : {}),
+    ...(correctAnswers !== undefined ? { correctAnswers } : {}),
+    ...(achievements !== undefined ? { achievements } : {}),
+    ...(unlockedItems !== undefined ? { unlockedItems: unlockedItems.map((item) => item.trim()) } : {}),
+    ...(profileSettings !== undefined ? { profileSettings } : {}),
+    ...(lastPlayedAt !== undefined ? { lastPlayedAt: lastPlayedAt.trim() } : {}),
   };
 
   next();
 };
 
 export const validateAuthRegister = (request, response, next) => {
-  const { username, email, password, avatar } = request.body ?? {};
+  const { username, email, password, avatar, avatarColor } = request.body ?? {};
 
   if (!isNonEmptyString(username) || username.trim().length < 3 || username.trim().length > 32) {
     response.status(400).json({
@@ -123,11 +285,20 @@ export const validateAuthRegister = (request, response, next) => {
     return;
   }
 
+  if (avatarColor !== undefined && (typeof avatarColor !== 'string' || avatarColor.trim().length > 32)) {
+    response.status(400).json({
+      error: 'Invalid avatarColor',
+      message: 'avatarColor должен быть строкой длиной до 32 символов.',
+    });
+    return;
+  }
+
   request.body = {
     username: username.trim(),
     email: email.trim().toLowerCase(),
     password: password.trim(),
     avatar: avatar.trim(),
+    ...(avatarColor !== undefined ? { avatarColor: avatarColor.trim() } : {}),
   };
 
   next();

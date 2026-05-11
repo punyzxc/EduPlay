@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'eduplay-v3';
+const CACHE_VERSION = 'eduplay-v4';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -6,10 +6,12 @@ const APP_SHELL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './favicon.ico',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-512.png',
   './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
   './splash/splash-1170x2532.png',
 ];
 

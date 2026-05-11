@@ -1,34 +1,23 @@
-import { useState, useCallback } from 'react';
-
-export interface Question {
-  id: string;
-  question: string;
-  options: string[];
-  correct: number;
-  category: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-export interface Answer {
-  questionId: string;
-  selectedIndex: number;
-  isCorrect: boolean;
-  timeTaken: number;
-}
+import { useCallback, useMemo, useState } from 'react';
+import { Answer, Question } from '../types/quiz';
 
 export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => void) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [isAnswered, setIsAnswered] = useState(false);
 
+  const totalQuestions = questions.length;
   const currentQuestion = questions[currentIndex];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
+  const progress = useMemo(
+    () => (totalQuestions > 0 ? ((currentIndex + 1) / totalQuestions) * 100 : 0),
+    [currentIndex, totalQuestions],
+  );
 
   const answerQuestion = useCallback(
-    (selectedIndex: number, timeTaken: number = 0) => {
-      if (isAnswered) return;
+    (selectedIndex: number, timeTaken = 0) => {
+      if (isAnswered || !currentQuestion) return;
 
-      const isCorrect = selectedIndex === currentQuestion.correct;
+      const isCorrect = selectedIndex === currentQuestion.correctAnswer;
       const newAnswer: Answer = {
         questionId: currentQuestion.id,
         selectedIndex,
@@ -36,21 +25,21 @@ export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => vo
         timeTaken,
       };
 
-      setAnswers((prev) => [...prev, newAnswer]);
+      setAnswers((previous) => [...previous, newAnswer]);
       setIsAnswered(true);
     },
     [currentQuestion, isAnswered],
   );
 
   const nextQuestion = useCallback(() => {
-    if (currentIndex + 1 >= questions.length) {
+    if (currentIndex + 1 >= totalQuestions) {
       onEnd?.(answers);
       return;
     }
 
-    setCurrentIndex((prev) => prev + 1);
+    setCurrentIndex((previous) => previous + 1);
     setIsAnswered(false);
-  }, [currentIndex, questions.length, answers, onEnd]);
+  }, [answers, currentIndex, onEnd, totalQuestions]);
 
   const reset = useCallback(() => {
     setCurrentIndex(0);
@@ -58,12 +47,12 @@ export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => vo
     setIsAnswered(false);
   }, []);
 
-  const isQuizComplete = currentIndex + 1 >= questions.length && isAnswered;
+  const isQuizComplete = totalQuestions > 0 && currentIndex + 1 >= totalQuestions && isAnswered;
 
   return {
     currentQuestion,
     currentIndex,
-    totalQuestions: questions.length,
+    totalQuestions,
     progress,
     answers,
     isAnswered,
@@ -71,6 +60,6 @@ export const useQuiz = (questions: Question[], onEnd?: (answers: Answer[]) => vo
     nextQuestion,
     reset,
     isQuizComplete,
-    correctAnswers: answers.filter((a) => a.isCorrect).length,
+    correctAnswers: answers.filter((answer) => answer.isCorrect).length,
   };
 };

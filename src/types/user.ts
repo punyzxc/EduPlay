@@ -29,10 +29,13 @@ export interface UserProfile {
   login: string;
   password: string;
   avatar: string;
+  avatarColor?: string;
   createdAt: string;
   updatedAt: string;
   stats: UserStats;
   achievements: Achievement[];
+  unlockedItems?: string[];
+  profileSettings?: Record<string, string | number | boolean>;
 }
 
 export interface QuizResultPayload {

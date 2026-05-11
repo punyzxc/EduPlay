@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ACHIEVEMENT_DEFINITIONS, useGame } from '../context/GameContext';
 import { AVATAR_PRESETS } from '../data/avatars';
 import { AvatarBadge, Button, Card, Header, ProgressBar } from '../components';
@@ -28,6 +28,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [avatar, setAvatar] = useState(user?.avatar || AVATAR_PRESETS[0].id);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setUsername(user.login);
+    setEmail(user.email);
+    setAvatar(user.avatar || AVATAR_PRESETS[0].id);
+  }, [user?.id, user?.login, user?.email, user?.avatar]);
 
   const unlockedSet = useMemo(() => new Set(achievements.map((achievement) => achievement.id)), [achievements]);
   const levelProgress = xp % 100;

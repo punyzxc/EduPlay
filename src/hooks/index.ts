@@ -1,2 +1,3 @@
 export { useTimer } from './useTimer';
-export { useQuiz, type Question, type Answer } from './useQuiz';
+export { useQuiz } from './useQuiz';
+export type { Question, Answer } from '../types/quiz';
