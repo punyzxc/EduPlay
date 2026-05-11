@@ -10,6 +10,20 @@ interface ProgressBarProps {
   animated?: boolean;
 }
 
+const colorStyles: Record<NonNullable<ProgressBarProps['color']>, string> = {
+  primary: 'from-sky-400 via-cyan-400 to-blue-500',
+  success: 'from-emerald-400 via-teal-400 to-green-500',
+  warning: 'from-amber-300 via-yellow-400 to-orange-500',
+  danger: 'from-rose-400 via-red-400 to-red-600',
+  secondary: 'from-slate-400 via-slate-500 to-slate-600',
+};
+
+const sizeStyles: Record<NonNullable<ProgressBarProps['size']>, string> = {
+  sm: 'h-1.5',
+  md: 'h-2.5',
+  lg: 'h-3',
+};
+
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   current,
   max,
@@ -19,54 +33,29 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   size = 'md',
   animated = true,
 }) => {
-  const percentage = Math.min((current / max) * 100, 100);
-
-  const colorStyles = {
-    primary: 'from-primary-500 to-primary-600',
-    success: 'from-success-500 to-success-600',
-    warning: 'from-warning-500 to-warning-600',
-    danger: 'from-danger-500 to-danger-600',
-    secondary: 'from-slate-500 to-slate-600',
-  };
-
-  const sizeStyles = {
-    sm: 'h-1.5',
-    md: 'h-2',
-    lg: 'h-3',
-  };
+  const percentage = max <= 0 ? 0 : Math.min(100, Math.max(0, (current / max) * 100));
 
   return (
     <div className="w-full">
-      {label && (
-        <div className="flex justify-between items-center mb-2 px-1">
-          <span className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            {label}
+      {(label || showPercentage) && (
+        <div className="mb-2 flex items-center justify-between px-1">
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {label ?? 'Прогресс'}
           </span>
           {showPercentage && (
-            <span className="text-sm font-mono text-primary-400 font-semibold">
-              {Math.round(percentage)}%
-            </span>
+            <span className="font-mono text-xs font-semibold text-sky-300">{Math.round(percentage)}%</span>
           )}
         </div>
       )}
-      <div className={`w-full bg-slate-800 rounded-full overflow-hidden shadow-inner border border-slate-700 ${sizeStyles[size]}`}>
+      <div className={`overflow-hidden rounded-full border border-slate-700/75 bg-slate-900/75 ${sizeStyles[size]}`}>
         <div
-          className={`
-            h-full bg-gradient-to-r ${colorStyles[color]}
-            ${animated ? 'transition-all duration-500 ease-out' : ''}
-            relative
-          `}
+          className={[
+            `h-full rounded-full bg-gradient-to-r ${colorStyles[color]}`,
+            animated ? 'transition-all duration-500 ease-out' : '',
+          ].join(' ')}
           style={{ width: `${percentage}%` }}
         >
-          {animated && percentage > 0 && (
-            <div
-              className="absolute inset-0 opacity-50 bg-white/20"
-              style={{
-                backgroundImage: 'linear-gradient(90deg, transparent, white, transparent)',
-                animation: 'shimmer 2s infinite',
-              }}
-            />
-          )}
+          {animated && percentage > 0 && <div className="skeleton h-full rounded-full opacity-35" />}
         </div>
       </div>
     </div>

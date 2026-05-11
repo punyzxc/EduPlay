@@ -17,9 +17,9 @@ const QUESTION_TIME_LIMIT = 12;
 const NEXT_BUTTON_DELAY_MS = 900;
 
 const difficultyStyles = {
-  easy: 'text-success-300 border-success-500/40 bg-success-500/15',
-  medium: 'text-warning-300 border-warning-500/40 bg-warning-500/15',
-  hard: 'text-danger-300 border-danger-500/40 bg-danger-500/15',
+  easy: 'text-emerald-200 border-emerald-400/40 bg-emerald-500/15',
+  medium: 'text-amber-200 border-amber-400/45 bg-amber-500/15',
+  hard: 'text-rose-200 border-rose-400/45 bg-rose-500/16',
 } as const;
 
 export const QuizScreen: React.FC<QuizScreenProps> = ({
@@ -107,8 +107,8 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
 
   if (!currentQuestion) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <Card size="lg" variant="gradient" className="w-full max-w-lg text-center space-y-4">
+      <div className="app-shell flex min-h-screen items-center justify-center px-4">
+        <Card size="lg" variant="gradient" className="w-full max-w-lg space-y-4 text-center">
           <p className="text-xl text-slate-200">Вопросы не найдены для выбранного режима.</p>
           <Button onClick={onQuit} variant="secondary" size="lg">
             Вернуться в меню
@@ -118,26 +118,23 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
     );
   }
 
+  const comboActive = streak >= 2 && !quiz.isAnswered;
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 -z-10" />
+    <div className="app-shell min-h-screen">
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
+      <Header title="Викторина" subtitle={`${selectedCategory.icon} ${selectedCategory.label}`} showStats />
 
-      <Header
-        title="Викторина"
-        subtitle={`${selectedCategory.icon} ${selectedCategory.label}`}
-        showStats={true}
-      />
-
-      <div className="flex-1 overflow-auto px-4 py-6 pb-20">
-        <div className="max-w-3xl mx-auto space-y-5">
+      <div className="flex-1 overflow-auto px-4 pb-8 pt-2">
+        <div className="mx-auto max-w-3xl space-y-4">
           <Card variant="subtle" size="md">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-semibold uppercase tracking-wider text-slate-300">
-                  Прогресс: {quiz.currentIndex + 1}/{quiz.totalQuestions}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">
+                  Вопрос {quiz.currentIndex + 1}/{quiz.totalQuestions}
                 </p>
                 <span
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.13em] ${
                     difficultyStyles[currentQuestion.difficulty]
                   }`}
                 >
@@ -149,30 +146,45 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
             </div>
           </Card>
 
-          <Card variant="gradient" size="md">
-            <Timer
-              key={currentQuestion.id}
-              duration={QUESTION_TIME_LIMIT}
-              onTimeUp={() => handleAnswer(-1)}
-              isActive={!quiz.isAnswered}
-              compact={true}
-              onTick={setRemainingTime}
-            />
-          </Card>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+            <Card variant="glass" size="md" className="surface-glow">
+              <Timer
+                key={currentQuestion.id}
+                duration={QUESTION_TIME_LIMIT}
+                onTimeUp={() => handleAnswer(-1)}
+                isActive={!quiz.isAnswered}
+                compact
+                onTick={setRemainingTime}
+              />
+            </Card>
+            <Card variant="subtle" size="md" className="flex items-center justify-between sm:flex-col sm:justify-center">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Счёт раунда</p>
+              <p className={`text-2xl font-bold ${quiz.isAnswered ? 'animate-scorePop' : ''}`}>
+                {sessionScore >= 0 ? '+' : ''}
+                <span className={sessionScore >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{sessionScore}</span>
+              </p>
+            </Card>
+          </div>
 
-          <Card variant="default" size="lg">
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 text-slate-400 text-sm">
-                <CategoryIcon categoryId={currentQuestion.categoryId} className="text-primary-300" />
+          {comboActive && (
+            <Card variant="gradient" size="sm" className="animate-slideUp border border-amber-300/40 text-center">
+              <p className="text-sm font-semibold text-amber-200">🔥 Комбо: серия {streak}</p>
+            </Card>
+          )}
+
+          <Card key={currentQuestion.id} variant="default" size="lg" className="animate-scaleIn">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <CategoryIcon categoryId={currentQuestion.categoryId} className="text-sky-300" />
                 <span>{currentQuestion.category}</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 leading-relaxed">
+              <h2 className="text-2xl font-bold leading-relaxed text-slate-100 sm:text-3xl">
                 {currentQuestion.question}
               </h2>
             </div>
           </Card>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {currentQuestion.options.map((option, index) => {
               const isSelected = selectedAnswer === index;
               const isCorrect = index === currentQuestion.correctAnswer;
@@ -185,19 +197,19 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
                   key={`${currentQuestion.id}-${index}`}
                   onClick={() => handleAnswer(index)}
                   disabled={quiz.isAnswered || isSubmitting}
-                  className={`w-full text-left rounded-xl border-2 p-4 transition-all duration-200 ${
+                  className={[
+                    'btn-interactive w-full rounded-2xl border p-4 text-left transition-all duration-200',
                     quiz.isAnswered || isSubmitting
-                      ? 'cursor-not-allowed'
-                      : 'hover:border-primary-400 hover:bg-primary-500/10 active:scale-[0.99]'
-                  } ${
+                      ? 'cursor-not-allowed opacity-95'
+                      : 'hover:-translate-y-0.5 hover:border-sky-400/65 active:scale-[0.99]',
                     showCorrect
-                      ? 'border-success-500 bg-success-500/20'
+                      ? 'border-emerald-400/75 bg-emerald-500/18'
                       : showWrong
-                        ? 'border-danger-500 bg-danger-500/20'
+                        ? 'border-rose-400/75 bg-rose-500/18 shake'
                         : isSelected
-                          ? 'border-primary-500 bg-primary-500/15'
-                          : 'border-slate-700 bg-slate-800/60'
-                  }`}
+                          ? 'border-sky-400/70 bg-sky-500/15'
+                          : 'border-slate-700 bg-slate-900/65',
+                  ].join(' ')}
                 >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-500 text-xs font-bold text-slate-200">
@@ -214,16 +226,16 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
             <Card
               variant={feedback === 'correct' ? 'gradient' : 'default'}
               size="md"
-              className={feedback === 'correct' ? 'border border-success-500/30' : 'border border-danger-500/30'}
+              className={feedback === 'correct' ? 'border border-emerald-400/35' : 'border border-rose-400/35'}
             >
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-lg font-bold text-slate-100">
-                    {feedback === 'correct' ? 'Верно!' : 'Неверно'}
+                    {feedback === 'correct' ? 'Отлично!' : 'Есть ошибка'}
                   </p>
                   <p
-                    className={`text-2xl font-bold ${
-                      scoreBreakdown.totalPoints >= 0 ? 'text-success-400' : 'text-danger-400'
+                    className={`text-2xl font-bold animate-scorePop ${
+                      scoreBreakdown.totalPoints >= 0 ? 'text-emerald-300' : 'text-rose-300'
                     }`}
                   >
                     {scoreBreakdown.totalPoints > 0 ? '+' : ''}
@@ -233,12 +245,12 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
 
                 {feedback === 'correct' && (
                   <p className="text-sm text-slate-300">
-                    Очки зависят от скорости: множитель {Math.round(scoreBreakdown.speedFactor * 100)}%
+                    Скорость ответа: {Math.round(scoreBreakdown.speedFactor * 100)}% от максимума.
                   </p>
                 )}
 
                 {scoreBreakdown.antiRandomPenalty < 0 && (
-                  <p className="text-sm text-warning-300">
+                  <p className="text-sm text-amber-300">
                     Анти-рандом штраф: {scoreBreakdown.antiRandomPenalty}
                   </p>
                 )}
@@ -253,7 +265,7 @@ export const QuizScreen: React.FC<QuizScreenProps> = ({
                   {nextButtonLocked
                     ? 'Подождите...'
                     : quiz.isQuizComplete
-                      ? 'Завершить'
+                      ? 'Показать результат'
                       : 'Следующий вопрос'}
                 </Button>
               </div>

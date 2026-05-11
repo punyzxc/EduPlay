@@ -13,6 +13,29 @@ interface ButtonProps {
   type?: 'button' | 'submit' | 'reset';
 }
 
+const variantStyles: Record<NonNullable<ButtonProps['variant']>, string> = {
+  primary:
+    'text-white border border-sky-400/30 bg-gradient-to-br from-sky-500 to-blue-600 shadow-soft-card hover:brightness-110',
+  secondary:
+    'text-slate-100 border border-slate-600/65 bg-gradient-to-br from-slate-700/90 to-slate-800/90 hover:border-slate-500 hover:bg-slate-700/90',
+  success:
+    'text-white border border-emerald-400/30 bg-gradient-to-br from-emerald-500 to-teal-600 shadow-soft-card hover:brightness-110',
+  danger:
+    'text-white border border-rose-400/35 bg-gradient-to-br from-rose-500 to-red-600 shadow-soft-card hover:brightness-110',
+  ghost:
+    'text-slate-200 border border-transparent bg-transparent hover:bg-slate-800/65 hover:text-slate-100',
+  outline:
+    'text-sky-200 border border-sky-400/50 bg-sky-500/5 hover:bg-sky-500/14 hover:text-sky-100',
+};
+
+const sizeStyles: Record<NonNullable<ButtonProps['size']>, string> = {
+  xs: 'px-3 py-1.5 text-xs rounded-xl',
+  sm: 'px-4 py-2 text-sm rounded-xl',
+  md: 'px-5 py-3 text-[0.96rem] rounded-2xl',
+  lg: 'px-6 py-3.5 text-base rounded-2xl',
+  xl: 'px-7 py-[1.125rem] text-lg rounded-2xl',
+};
+
 export const Button: React.FC<ButtonProps> = ({
   onClick,
   children,
@@ -25,100 +48,35 @@ export const Button: React.FC<ButtonProps> = ({
   icon,
   loading = false,
 }) => {
-  const baseStyles = `
-    inline-flex items-center justify-center gap-2
-    font-semibold rounded-lg
-    transition-all duration-200 ease-out
-    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900
-    disabled:opacity-50 disabled:cursor-not-allowed
-    active:scale-95
-    uppercase tracking-wide text-sm
-  `;
-
-  const variantStyles = {
-    primary: `
-      bg-gradient-to-r from-primary-600 to-primary-700
-      text-white shadow-lg
-      hover:shadow-xl hover:from-primary-700 hover:to-primary-800
-      focus:ring-primary-500
-      active:from-primary-800 active:to-primary-900
-    `,
-    secondary: `
-      bg-slate-700/80 text-slate-100
-      hover:bg-slate-600 hover:shadow-lg
-      focus:ring-slate-500
-      border border-slate-600/50
-    `,
-    success: `
-      bg-gradient-to-r from-success-500 to-success-600
-      text-white shadow-lg
-      hover:shadow-xl hover:from-success-600 hover:to-success-700
-      focus:ring-success-500
-    `,
-    danger: `
-      bg-gradient-to-r from-danger-500 to-danger-600
-      text-white shadow-lg
-      hover:shadow-xl hover:from-danger-600 hover:to-danger-700
-      focus:ring-danger-500
-    `,
-    ghost: `
-      bg-transparent text-primary-400
-      hover:bg-primary-500/10 hover:text-primary-300
-      focus:ring-primary-500
-    `,
-    outline: `
-      bg-transparent border-2 border-primary-500 text-primary-400
-      hover:bg-primary-500/10 hover:text-primary-300 hover:border-primary-400
-      focus:ring-primary-500
-    `,
-  };
-
-  const sizeStyles = {
-    xs: 'px-3 py-1.5 text-xs font-medium rounded-md',
-    sm: 'px-4 py-2 text-sm',
-    md: 'px-6 py-3 text-base',
-    lg: 'px-8 py-4 text-lg',
-    xl: 'px-10 py-5 text-xl',
-  };
-
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`
-        ${baseStyles}
-        ${variantStyles[variant]}
-        ${sizeStyles[size]}
-        ${fullWidth ? 'w-full' : ''}
-        ${className}
-      `}
       aria-busy={loading}
       aria-disabled={disabled || loading}
+      className={[
+        'btn-interactive inline-flex items-center justify-center gap-2 font-semibold tracking-[0.01em]',
+        'transition-all duration-200 ease-out active:scale-[0.985]',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+        'disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none',
+        variantStyles[variant],
+        sizeStyles[size],
+        fullWidth ? 'w-full' : '',
+        className,
+      ].join(' ')}
     >
       {loading && (
-        <svg
-          className="w-4 h-4 animate-spin"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
+        <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path
-            className="opacity-75"
+            className="opacity-90"
             fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4Zm2 5.3A8 8 0 014 12H0c0 3.04 1.14 5.82 3 7.94l3-2.65Z"
           />
         </svg>
       )}
-      {!loading && icon && <span className="text-lg">{icon}</span>}
+      {!loading && icon && <span className="text-[1.05em]">{icon}</span>}
       <span>{children}</span>
     </button>
   );

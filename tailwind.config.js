@@ -64,8 +64,8 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        display: ['Poppins', 'sans-serif'],
-        mono: ['Fira Code', 'monospace'],
+        display: ['Manrope', 'Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
       fontSize: {
         xs: ['0.75rem', { lineHeight: '1rem' }],
@@ -105,6 +105,7 @@ export default {
         '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         'glow': '0 0 20px 0 rgba(14, 165, 233, 0.4)',
         'glow-lg': '0 0 40px 0 rgba(14, 165, 233, 0.6)',
+        'soft-card': '0 18px 36px rgba(2, 6, 23, 0.34)',
       },
       keyframes: {
         slideUp: {

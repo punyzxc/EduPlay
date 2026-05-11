@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { AchievementToast } from './components';
+import { AchievementToast, BottomNav } from './components';
 import { GameProvider, useGame } from './context/GameContext';
 import { DEFAULT_QUIZ_SETTINGS, createQuizSession } from './data/questions';
 import {
+  LandingPage,
   LeaderboardScreen,
   MainScreen,
   ProfileScreen,
@@ -12,7 +13,7 @@ import {
 } from './pages';
 import { Answer, Question, QuizSettings } from './types/quiz';
 
-type AppScreen = 'auth' | 'main' | 'quiz' | 'results' | 'leaderboard' | 'profile';
+type AppScreen = 'landing' | 'auth' | 'main' | 'quiz' | 'results' | 'leaderboard' | 'profile';
 
 interface QuizResult {
   answers: Answer[];
@@ -24,11 +25,15 @@ interface LoadingScreenProps {
 }
 
 const LoadingScreen = ({ message }: LoadingScreenProps) => (
-  <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
-    <div className="w-full max-w-md rounded-2xl border border-primary-500/30 bg-slate-900/80 p-8 text-center shadow-2xl">
-      <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-200/20 border-t-primary-400" />
+  <div className="app-shell safe-top flex min-h-screen items-center justify-center px-4">
+    <div className="glass-lg w-full max-w-sm rounded-[1.65rem] border border-slate-600/35 p-7 text-center shadow-soft-card">
+      <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-sky-300/20 border-t-sky-300" />
       <p className="text-xl font-bold text-slate-100">EduPlay</p>
-      <p className="mt-2 text-slate-300">{message}</p>
+      <p className="mt-2 text-sm text-slate-300">{message}</p>
+      <div className="mt-5 space-y-2">
+        <div className="skeleton h-2 w-full rounded-full" />
+        <div className="skeleton h-2 w-3/4 rounded-full" />
+      </div>
     </div>
   </div>
 );
@@ -56,7 +61,7 @@ function AppContent() {
     recordQuizResult,
   } = useGame();
 
-  const [screen, setScreen] = useState<AppScreen>('auth');
+  const [screen, setScreen] = useState<AppScreen>('landing');
   const [activeSettings, setActiveSettings] = useState<QuizSettings>(DEFAULT_QUIZ_SETTINGS);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [result, setResult] = useState<QuizResult | null>(null);
@@ -67,7 +72,7 @@ function AppContent() {
     document.documentElement.classList.add('dark');
     loadingTimeoutRef.current = window.setTimeout(() => {
       setLoadingMessage('');
-      setScreen(isUserLoggedIn ? 'main' : 'auth');
+      setScreen('landing');
     }, 650);
 
     return () => {
@@ -75,13 +80,15 @@ function AppContent() {
         window.clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [isUserLoggedIn]);
+  }, []);
 
   useEffect(() => {
     if (!isUserLoggedIn) {
-      setScreen('auth');
       setResult(null);
       setActiveQuestions([]);
+      if (screen === 'main' || screen === 'quiz' || screen === 'results' || screen === 'leaderboard' || screen === 'profile') {
+        setScreen('auth');
+      }
       return;
     }
 
@@ -114,6 +121,7 @@ function AppContent() {
   };
 
   const handleQuizComplete = (answers: Answer[], totalScore: number) => {
+    const quizSessionId = `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const correctAnswers = answers.filter((answer) => answer.isCorrect).length;
     const totalAnswers = answers.length;
     const averageAnswerTime = totalAnswers
@@ -129,6 +137,7 @@ function AppContent() {
         );
 
     recordQuizResult({
+      quizSessionId,
       totalScore,
       correctAnswers,
       totalAnswers,
@@ -159,15 +168,27 @@ function AppContent() {
 
   const handleLogout = () => {
     logout();
+    setScreen('landing');
   };
+
+  const handleBottomNavigation = (target: 'main' | 'leaderboard' | 'profile') => {
+    setScreen(target);
+  };
+
+  const handleEnterFromLanding = () => {
+    setScreen(isUserLoggedIn ? 'main' : 'auth');
+  };
+
+  const showBottomNav =
+    isUserLoggedIn && (screen === 'main' || screen === 'leaderboard' || screen === 'profile');
 
   if (loadingMessage) {
     return <LoadingScreen message={loadingMessage} />;
   }
 
   return (
-    <div className="bg-gray-900 text-white min-h-screen">
-      <div className="fixed right-3 top-3 z-[70] w-[320px] max-w-[calc(100vw-1.5rem)] space-y-2">
+    <div className="app-shell bg-gray-900 text-white min-h-screen">
+      <div className="safe-top fixed right-3 top-0 z-[70] w-[320px] max-w-[calc(100vw-1.5rem)] space-y-2 pt-2">
         {achievementQueue.slice(0, 3).map((achievement, index) => (
           <div key={`${achievement.id}-${index}`}>
             <AchievementToast achievement={achievement} onClose={dismissAchievement} />
@@ -175,39 +196,50 @@ function AppContent() {
         ))}
       </div>
 
-      {screen === 'auth' && <RegistrationScreen onAuthComplete={() => setScreen('main')} />}
+      <div key={screen} className="screen-enter">
+        {screen === 'landing' && <LandingPage onStart={handleEnterFromLanding} />}
 
-      {screen === 'main' && (
-        <MainScreen
-          onStartQuiz={handleStartQuiz}
-          onViewLeaderboard={handleViewLeaderboard}
-          onOpenProfile={handleOpenProfile}
-          onLogout={handleLogout}
+        {screen === 'auth' && <RegistrationScreen onAuthComplete={() => setScreen('main')} />}
+
+        {screen === 'main' && (
+          <MainScreen
+            onStartQuiz={handleStartQuiz}
+            onViewLeaderboard={handleViewLeaderboard}
+            onOpenProfile={handleOpenProfile}
+            onLogout={handleLogout}
+          />
+        )}
+
+        {screen === 'profile' && <ProfileScreen onBack={handleQuitToMain} onLogout={handleLogout} />}
+
+        {screen === 'quiz' && (
+          <QuizScreen
+            questions={activeQuestions}
+            settings={activeSettings}
+            onQuit={handleQuitToMain}
+            onComplete={handleQuizComplete}
+          />
+        )}
+
+        {screen === 'results' && result && (
+          <ResultScreen
+            answers={result.answers}
+            totalScore={result.totalScore}
+            settings={activeSettings}
+            onRetry={handleRetryQuiz}
+            onQuit={handleQuitToMain}
+          />
+        )}
+
+        {screen === 'leaderboard' && <LeaderboardScreen onBack={handleQuitToMain} />}
+      </div>
+
+      {showBottomNav && (
+        <BottomNav
+          active={screen === 'leaderboard' ? 'leaderboard' : screen === 'profile' ? 'profile' : 'main'}
+          onChange={handleBottomNavigation}
         />
       )}
-
-      {screen === 'profile' && <ProfileScreen onBack={handleQuitToMain} onLogout={handleLogout} />}
-
-      {screen === 'quiz' && (
-        <QuizScreen
-          questions={activeQuestions}
-          settings={activeSettings}
-          onQuit={handleQuitToMain}
-          onComplete={handleQuizComplete}
-        />
-      )}
-
-      {screen === 'results' && result && (
-        <ResultScreen
-          answers={result.answers}
-          totalScore={result.totalScore}
-          settings={activeSettings}
-          onRetry={handleRetryQuiz}
-          onQuit={handleQuitToMain}
-        />
-      )}
-
-      {screen === 'leaderboard' && <LeaderboardScreen onBack={handleQuitToMain} />}
     </div>
   );
 }

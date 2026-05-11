@@ -1,12 +1,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ACHIEVEMENT_DEFINITIONS, getAchievementDefinition } from '../data/achievements';
 import { AVATAR_PRESETS } from '../data/avatars';
+import {
+  BackendProfile,
+  loginUserInBackend,
+  registerUserInBackend,
+  SubmitScorePayload,
+  submitScoreToBackend,
+  syncProfileToBackend,
+} from '../utils/backendApi';
 import { setPlayerName } from '../utils/dailyLeaderboard';
 import { Achievement, QuizResultPayload, UserProfile, UserStats } from '../types/user';
 
 const USERS_STORAGE_KEY = 'eduplay_users_v2';
 const SESSION_STORAGE_KEY = 'eduplay_session_v2';
+const PENDING_SCORE_SYNC_KEY = 'eduplay_pending_score_sync_v1';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LEGACY_QUIZ_SESSION_PREFIX = 'legacy_quiz';
 
 const defaultStats = (): UserStats => ({
   totalScore: 0,
@@ -27,8 +37,8 @@ interface AuthResult {
 
 export interface GameContextType {
   user: UserProfile | null;
-  registerUser: (email: string, login: string, password: string, avatar?: string) => AuthResult;
-  loginUser: (identity: string, password: string) => AuthResult;
+  registerUser: (email: string, login: string, password: string, avatar?: string) => Promise<AuthResult>;
+  loginUser: (identity: string, password: string) => Promise<AuthResult>;
   updateUserProfile: (profile: Partial<UserProfile>) => AuthResult;
   isUserLoggedIn: boolean;
   logout: () => void;
@@ -149,6 +159,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [users, setUsers] = useState<UserProfile[]>(initialState.users);
   const [sessionUserId, setSessionUserId] = useState<string | null>(initialState.sessionUserId);
   const [achievementQueue, setAchievementQueue] = useState<Achievement[]>([]);
+  const [pendingScoreSync, setPendingScoreSync] = useState<SubmitScorePayload[]>(
+    () => {
+      const pendingItems = parseJson<SubmitScorePayload[]>(localStorage.getItem(PENDING_SCORE_SYNC_KEY), []);
+      const seed = Date.now();
+      return pendingItems.map((entry, index) => {
+        if (entry.score === 0 || entry.quizSessionId) {
+          return entry;
+        }
+        return {
+          ...entry,
+          quizSessionId: `${LEGACY_QUIZ_SESSION_PREFIX}_${seed}_${index}`,
+        };
+      });
+    },
+  );
 
   const user = useMemo(
     () => users.find((candidate) => candidate.id === sessionUserId) ?? null,
@@ -161,9 +186,45 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, [sessionUserId]);
 
+  const buildLocalUserFromBackend = useCallback(
+    (profile: BackendProfile, password: string, fallbackLogin?: string): UserProfile => {
+      const normalizedLogin = profile.username || fallbackLogin || profile.email;
+      const localId = `backend_${profile.id}`;
+      const existing = users.find(
+        (candidate) =>
+          candidate.id === localId ||
+          candidate.email.toLowerCase() === profile.email.toLowerCase() ||
+          candidate.login.toLowerCase() === normalizedLogin.toLowerCase(),
+      );
+
+      return {
+        id: localId,
+        email: profile.email,
+        username: normalizedLogin,
+        login: normalizedLogin,
+        password,
+        avatar: profile.avatar || existing?.avatar || AVATAR_PRESETS[0].id,
+        createdAt: profile.createdAt || existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        stats: {
+          ...defaultStats(),
+          ...(existing?.stats ?? {}),
+          totalScore: profile.totalScore,
+          bestScore: profile.bestScore,
+        },
+        achievements: existing?.achievements ?? [],
+      };
+    },
+    [users],
+  );
+
   useEffect(() => {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem(PENDING_SCORE_SYNC_KEY, JSON.stringify(pendingScoreSync));
+  }, [pendingScoreSync]);
 
   useEffect(() => {
     if (sessionUserId) {
@@ -179,12 +240,48 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const registerUser = (
+  useEffect(() => {
+    if (!user) return;
+
+    void syncProfileToBackend({
+      username: user.login,
+      email: user.email,
+      avatar: user.avatar,
+      password: user.password,
+    }).catch(() => {
+      // Offline fallback: local state remains source of truth until backend is reachable.
+    });
+  }, [user?.id, user?.login, user?.email, user?.avatar, user?.password]);
+
+  useEffect(() => {
+    if (!user || pendingScoreSync.length === 0) return;
+
+    let isCancelled = false;
+    void (async () => {
+      const remaining: SubmitScorePayload[] = [];
+      for (const payload of pendingScoreSync) {
+        try {
+          await submitScoreToBackend(payload);
+        } catch {
+          remaining.push(payload);
+        }
+      }
+      if (!isCancelled) {
+        setPendingScoreSync(remaining);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id, pendingScoreSync]);
+
+  const registerUser = async (
     email: string,
     login: string,
     password: string,
     avatar: string = AVATAR_PRESETS[0].id,
-  ): AuthResult => {
+  ): Promise<AuthResult> => {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedLogin = login.trim();
 
@@ -209,30 +306,64 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Этот логин уже занят.' };
     }
 
-    const now = new Date().toISOString();
-    const newUser: UserProfile = {
-      id: `user_${Date.now()}`,
-      email: normalizedEmail,
-      username: normalizedLogin,
-      login: normalizedLogin,
-      password,
-      avatar,
-      createdAt: now,
-      updatedAt: now,
-      stats: defaultStats(),
-      achievements: [],
-    };
+    try {
+      const profile = await registerUserInBackend({
+        username: normalizedLogin,
+        email: normalizedEmail,
+        password,
+        avatar,
+      });
+      const newUser = buildLocalUserFromBackend(profile, password, normalizedLogin);
 
-    setUsers((previous) => [...previous, newUser]);
-    setSessionUserId(newUser.id);
-    return { success: true };
+      setUsers((previous) => {
+        const filtered = previous.filter(
+          (candidate) =>
+            candidate.id !== newUser.id &&
+            candidate.email.toLowerCase() !== newUser.email.toLowerCase() &&
+            candidate.login.toLowerCase() !== newUser.login.toLowerCase(),
+        );
+        return [...filtered, newUser];
+      });
+      setSessionUserId(newUser.id);
+      return { success: true };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('409')) {
+        return { success: false, error: 'Пользователь с таким email или username уже существует на сервере.' };
+      }
+      return { success: false, error: 'Сервер недоступен. Проверьте backend и попробуйте снова.' };
+    }
   };
 
-  const loginUser = (identity: string, password: string): AuthResult => {
+  const loginUser = async (identity: string, password: string): Promise<AuthResult> => {
     const normalizedIdentity = identity.trim().toLowerCase();
     if (!normalizedIdentity || !password.trim()) {
       return { success: false, error: 'Заполните логин и пароль.' };
     }
+
+    try {
+      const profile = await loginUserInBackend({
+        identity: normalizedIdentity,
+        password,
+      });
+      const loggedInUser = buildLocalUserFromBackend(profile, password, profile.username);
+
+      setUsers((previous) => {
+        const filtered = previous.filter(
+          (candidate) =>
+            candidate.id !== loggedInUser.id &&
+            candidate.email.toLowerCase() !== loggedInUser.email.toLowerCase() &&
+            candidate.login.toLowerCase() !== loggedInUser.login.toLowerCase(),
+        );
+        return [...filtered, loggedInUser];
+      });
+      setSessionUserId(loggedInUser.id);
+      return { success: true };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('401')) {
+        return { success: false, error: 'Неверный пароль.' };
+      }
+    }
+
     const target = users.find(
       (candidate) =>
         candidate.email.toLowerCase() === normalizedIdentity ||
@@ -419,6 +550,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (unlockedNow.length > 0) {
       setAchievementQueue((queue) => [...queue, ...unlockedNow]);
     }
+
+    const scorePayload: SubmitScorePayload = {
+      username: user.login,
+      email: user.email,
+      avatar: user.avatar,
+      score: payload.totalScore,
+      password: user.password,
+      quizSessionId: payload.quizSessionId,
+    };
+
+    void submitScoreToBackend(scorePayload).catch(() => {
+      setPendingScoreSync((previous) => [...previous.slice(-49), scorePayload]);
+    });
   };
 
   const dismissAchievement = (achievementId: string) => {

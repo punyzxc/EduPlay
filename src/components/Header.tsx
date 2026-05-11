@@ -16,66 +16,45 @@ export const Header: React.FC<HeaderProps> = ({
   const currentLevelXP = xp % 100;
 
   return (
-    <div className="w-full sticky top-0 z-40 backdrop-blur-xl">
-      {/* Background with gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 to-slate-950/60 border-b border-slate-700/50" />
-
-      <div className="relative px-4 py-4 sm:px-6 md:px-8">
-        <div className="flex items-center justify-between gap-4 mb-3">
-          {/* Title Section */}
-          <div className="flex-1">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold font-display">
-              <span className="text-gradient">
-                {title}
-              </span>
+    <header className="safe-top sticky top-0 z-40 px-4 pb-3 sm:px-6">
+      <div className="glass-lg rounded-b-[1.35rem] border-b border-slate-600/35 px-4 pb-3 pt-2 shadow-soft-card">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-extrabold sm:text-[1.9rem]">
+              <span className="text-gradient">{title}</span>
             </h1>
-            {subtitle && (
-              <p className="text-sm sm:text-base text-slate-400 mt-1">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-0.5 text-xs text-slate-300 sm:text-sm">{subtitle}</p>}
           </div>
 
-          {/* Stats Section */}
           {showStats && (
-            <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
-              {/* Level Stat */}
-              <div className="glass p-3 rounded-lg text-center min-w-[80px]">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  Level
-                </p>
-                <p className="text-2xl sm:text-3xl font-bold text-primary-400">{level}</p>
+            <div className="flex gap-2">
+              <div className="rounded-2xl border border-slate-600/50 bg-slate-900/65 px-3 py-2 text-center">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-slate-400">Lvl</p>
+                <p className="text-lg font-bold text-sky-300">{level}</p>
               </div>
-
-              {/* Score Stat */}
-              <div className="glass p-3 rounded-lg text-center min-w-[90px]">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  Score
-                </p>
-                <p className="text-2xl sm:text-3xl font-bold text-success-400">{score}</p>
+              <div className="rounded-2xl border border-slate-600/50 bg-slate-900/65 px-3 py-2 text-center">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-slate-400">Score</p>
+                <p className="text-lg font-bold text-emerald-300">{score}</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* XP Progress Bar */}
         {showStats && (
-          <div className="max-w-xs sm:max-w-md">
-            <div className="flex justify-between items-center mb-2 px-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                XP Progress
-              </span>
-              <span className="text-xs font-mono text-primary-400">
-                {currentLevelXP}/100
-              </span>
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] uppercase tracking-[0.13em]">
+              <span className="text-slate-400">XP Progress</span>
+              <span className="font-mono text-sky-300">{currentLevelXP}/100</span>
             </div>
-            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            <div className="h-2 overflow-hidden rounded-full border border-slate-700 bg-slate-900/75">
               <div
-                className={`h-full bg-gradient-to-r from-primary-500 to-cyan-500 transition-all duration-500 ease-out`}
+                className="h-full rounded-full bg-gradient-to-r from-sky-400 via-cyan-400 to-emerald-400 transition-all duration-500 ease-out"
                 style={{ width: `${currentLevelXP}%` }}
               />
             </div>
           </div>
         )}
       </div>
-    </div>
+    </header>
   );
 };

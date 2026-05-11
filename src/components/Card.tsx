@@ -9,6 +9,20 @@ interface CardProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+const variantStyles: Record<NonNullable<CardProps['variant']>, string> = {
+  default: 'surface-card',
+  glass: 'glass surface-glow',
+  gradient:
+    'surface-card bg-gradient-to-br from-sky-500/16 via-slate-900/72 to-teal-500/10 border-sky-400/25',
+  subtle: 'surface-subtle',
+};
+
+const sizeStyles: Record<NonNullable<CardProps['size']>, string> = {
+  sm: 'p-4 rounded-2xl',
+  md: 'p-5 sm:p-6 rounded-3xl',
+  lg: 'p-6 sm:p-7 rounded-[1.75rem]',
+};
+
 export const Card: React.FC<CardProps> = ({
   children,
   className = '',
@@ -17,39 +31,24 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   size = 'md',
 }) => {
-  const variantStyles = {
-    default: 'bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700',
-    glass: 'glass border border-slate-700/50',
-    gradient: 'bg-gradient-to-br from-primary-600/20 to-cyan-600/20 border border-primary-500/30',
-    subtle: 'bg-slate-900/50 border border-slate-800',
-  };
-
-  const sizeStyles = {
-    sm: 'p-4 rounded-lg',
-    md: 'p-6 rounded-2xl',
-    lg: 'p-8 rounded-3xl',
-  };
-
-  const baseStyles = `
-    transition-all duration-300 ease-out
-    backdrop-blur-md
-    ${variantStyles[variant]}
-    ${sizeStyles[size]}
-    ${animated ? 'hover:shadow-xl hover:border-primary-500/50 transform hover:scale-105' : ''}
-    ${onClick ? 'cursor-pointer' : ''}
-  `;
-
   return (
     <div
       onClick={onClick}
-      className={`${baseStyles} ${className}`}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onKeyDown={(e) => {
-        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      onKeyDown={(event) => {
+        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
           onClick();
         }
       }}
+      className={[
+        'relative transition-all duration-300 ease-out',
+        variantStyles[variant],
+        sizeStyles[size],
+        animated ? 'hover:-translate-y-0.5 hover:shadow-soft-card' : '',
+        onClick ? 'cursor-pointer active:scale-[0.995]' : '',
+        className,
+      ].join(' ')}
     >
       {children}
     </div>

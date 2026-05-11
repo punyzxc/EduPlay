@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface TimerProps {
-  duration: number; // in seconds
+  duration: number;
   onTimeUp: () => void;
   isActive?: boolean;
   compact?: boolean;
@@ -29,47 +29,59 @@ export const Timer: React.FC<TimerProps> = ({
   useEffect(() => {
     if (!isActive || timeLeft <= 0) return;
 
-    const timer = setTimeout(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
+    const timeout = window.setTimeout(() => {
+      setTimeLeft((previous) => {
+        if (previous <= 1) {
           onTimeUp();
           return 0;
         }
-        return prev - 1;
+        return previous - 1;
       });
     }, 1000);
 
-    return () => clearTimeout(timer);
-  }, [timeLeft, isActive, onTimeUp]);
+    return () => window.clearTimeout(timeout);
+  }, [isActive, onTimeUp, timeLeft]);
 
-  // Calculate percentage for visual indicator
   const percentage = Math.max(0, (timeLeft / duration) * 100);
-  const isWarning = timeLeft <= duration / 3; // Last 1/3 of time
-  const isCritical = timeLeft <= 5; // Last 5 seconds
+  const isWarning = timeLeft <= Math.ceil(duration * 0.33);
+  const isCritical = timeLeft <= Math.min(4, Math.ceil(duration * 0.2));
 
-  const getColorClass = () => {
-    if (isCritical) return 'text-danger-500';
-    if (isWarning) return 'text-warning-500';
-    return 'text-primary-400';
-  };
-
-  const getBarColor = () => {
-    if (isCritical) return 'from-danger-500 to-danger-600';
-    if (isWarning) return 'from-warning-500 to-warning-600';
-    return 'from-primary-500 to-primary-600';
-  };
+  const tone = useMemo(() => {
+    if (isCritical) {
+      return {
+        text: 'text-rose-300',
+        ring: '#fb7185',
+        gradient: 'from-rose-400 via-red-400 to-red-600',
+        message: 'Финиш',
+      };
+    }
+    if (isWarning) {
+      return {
+        text: 'text-amber-300',
+        ring: '#fbbf24',
+        gradient: 'from-amber-300 via-yellow-400 to-orange-500',
+        message: 'Ускорься',
+      };
+    }
+    return {
+      text: 'text-sky-300',
+      ring: '#38bdf8',
+      gradient: 'from-sky-300 via-cyan-400 to-blue-500',
+      message: 'Ритм',
+    };
+  }, [isCritical, isWarning]);
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 glass rounded-lg">
-        <div className={`text-2xl font-mono font-bold ${getColorClass()} transition-colors duration-200`}>
-          {String(Math.ceil(timeLeft)).padStart(2, '0')}s
-        </div>
-        <div className="w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full bg-gradient-to-r ${getBarColor()} transition-all duration-300`}
-            style={{ width: `${percentage}%` }}
-          />
+      <div className="glass flex items-center gap-3 rounded-2xl p-3">
+        <div className={`text-2xl font-mono font-bold ${tone.text}`}>{String(Math.ceil(timeLeft)).padStart(2, '0')}s</div>
+        <div className="flex-1">
+          <div className="h-2 overflow-hidden rounded-full border border-slate-700 bg-slate-900/75">
+            <div
+              className={`h-full rounded-full bg-gradient-to-r ${tone.gradient} transition-all duration-300`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
         </div>
       </div>
     );
@@ -77,54 +89,34 @@ export const Timer: React.FC<TimerProps> = ({
 
   return (
     <div className="w-full">
-      {/* Timer Display */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="relative w-32 h-32 sm:w-40 sm:h-40">
-          {/* Circular Background */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700/50 flex items-center justify-center">
-            {/* Timer Number */}
-            <div
-              className={`text-5xl sm:text-6xl font-mono font-bold ${getColorClass()} transition-colors duration-200 text-center`}
-            >
-              {String(Math.ceil(timeLeft)).padStart(2, '0')}
+      <div className="mb-5 flex items-center justify-center">
+        <div className="relative h-32 w-32 sm:h-36 sm:w-36">
+          <div
+            className="absolute inset-0 rounded-full p-1"
+            style={{
+              background: `conic-gradient(${tone.ring} ${percentage * 3.6}deg, rgba(15,23,42,0.7) 0deg)`,
+            }}
+          >
+            <div className="glass relative flex h-full w-full items-center justify-center rounded-full">
+              <div className="text-center">
+                <div className={`font-mono text-4xl font-bold ${tone.text}`}>
+                  {String(Math.ceil(timeLeft)).padStart(2, '0')}
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{tone.message}</div>
+              </div>
             </div>
-
-            {/* Animated Ring */}
-            <div
-              className="absolute inset-0 rounded-full border-4 border-transparent transition-all duration-300"
-              style={{
-                borderRightColor: isCritical ? '#ef4444' : isWarning ? '#f59e0b' : '#0ea5e9',
-                transform: `rotate(${360 - (percentage / 100) * 360}deg)`,
-              }}
-            />
           </div>
+          {isCritical && <div className="absolute inset-0 animate-pulseSoft rounded-full border border-rose-300/60" />}
         </div>
       </div>
 
-      {/* Progress Bar */}
       <div className="space-y-2">
-        <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+        <div className="h-3 overflow-hidden rounded-full border border-slate-700 bg-slate-900/80">
           <div
-            className={`h-full bg-gradient-to-r ${getBarColor()} transition-all duration-300 ease-out`}
+            className={`h-full rounded-full bg-gradient-to-r ${tone.gradient} transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
-
-        {/* Status Text */}
-        {isCritical && (
-          <div className="text-center animate-pulse">
-            <p className="text-sm sm:text-base font-bold text-danger-400 uppercase tracking-wider">
-              ⏰ Время заканчивается!
-            </p>
-          </div>
-        )}
-        {isWarning && !isCritical && (
-          <div className="text-center">
-            <p className="text-sm sm:text-base font-semibold text-warning-400 uppercase tracking-wider">
-              ⚠️ Спешите!
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

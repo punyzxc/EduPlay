@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'eduplay-v2';
+const CACHE_VERSION = 'eduplay-v3';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -62,6 +62,10 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.mode === 'navigate') {
     event.respondWith(networkFirstNavigation(event.request));
+    return;
+  }
+
+  if (requestUrl.pathname.startsWith('/api/')) {
     return;
   }
 

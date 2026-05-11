@@ -36,6 +36,7 @@ export interface UserProfile {
 }
 
 export interface QuizResultPayload {
+  quizSessionId: string;
   totalScore: number;
   correctAnswers: number;
   totalAnswers: number;

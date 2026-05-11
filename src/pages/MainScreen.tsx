@@ -39,11 +39,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
   );
 
   const currentLevelXP = xp % 100;
-
-  const selectedCategoryMeta = useMemo(
-    () => getCategoryById(selectedCategory),
-    [selectedCategory],
-  );
+  const selectedCategoryMeta = useMemo(() => getCategoryById(selectedCategory), [selectedCategory]);
 
   const handleStart = () => {
     onStartQuiz({
@@ -54,134 +50,139 @@ export const MainScreen: React.FC<MainScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 -z-10" />
+    <div className="app-shell min-h-screen">
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800" />
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-8 top-24 h-52 w-52 rounded-full bg-sky-500/20 blur-3xl" />
+        <div className="absolute -right-10 top-1/3 h-56 w-56 rounded-full bg-cyan-500/12 blur-3xl" />
+      </div>
 
-      <Header title="EduPlay" subtitle="Выберите режим и начните викторину" showStats={true} />
+      <Header title="EduPlay" subtitle="Играй, прокачивайся и соревнуйся" showStats />
 
-      <div className="flex-1 overflow-auto px-4 py-6 pb-20">
-        <div className="max-w-3xl mx-auto space-y-6">
+      <div className="mobile-content-padding flex-1 overflow-auto px-4 pb-6 pt-2">
+        <div className="mx-auto max-w-3xl space-y-4">
           {user && (
-            <Card variant="glass" size="md">
+            <Card variant="glass" size="md" className="surface-glow">
               <div className="flex items-center gap-3">
                 <AvatarBadge avatarId={user.avatar} username={user.login} size="lg" />
-                <div className="flex-1">
-                  <p className="text-xs uppercase tracking-wider text-slate-400">Аккаунт</p>
-                  <p className="text-xl font-bold text-slate-100">{user.login}</p>
-                  <p className="text-sm text-slate-300">{user.email}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Аккаунт</p>
+                  <p className="truncate text-lg font-bold text-slate-100">{user.login}</p>
+                  <p className="truncate text-sm text-slate-300">{user.email}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
-                  <Button onClick={onOpenProfile} variant="outline" size="sm" icon="👤">
-                    Профиль
-                  </Button>
-                  <Button onClick={onLogout} variant="ghost" size="sm" icon="↩">
-                    Выйти
-                  </Button>
-                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button onClick={onOpenProfile} variant="outline" size="sm" icon="👤">
+                  Профиль
+                </Button>
+                <Button onClick={onLogout} variant="ghost" size="sm" icon="↩">
+                  Выйти
+                </Button>
               </div>
             </Card>
           )}
 
-          <Card variant="gradient" size="md">
-            <div className="space-y-4">
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
-                Режим игры
-              </h2>
-              <p className="text-slate-300">
-                В каждом раунде 10 вопросов. Очки зависят от скорости: Easy до +5, Medium до +7, Hard до +10.
-                Ошибки: Easy -10, Medium -15, Hard -20.
+          <Card variant="gradient" size="md" className="surface-glow">
+            <div className="space-y-1.5">
+              <p className="text-xs uppercase tracking-[0.15em] text-slate-300">Режим раунда</p>
+              <h2 className="text-2xl font-bold text-slate-50">10 вопросов с таймером</h2>
+              <p className="text-sm text-slate-300">
+                Очки зависят от скорости ответа. Ошибки дают штраф, поэтому играй точно.
               </p>
             </div>
           </Card>
 
           <Card variant="default" size="md">
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-100 uppercase tracking-wider">
-                Категория
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {QUIZ_CATEGORIES.map((category) => {
-                  const isActive = selectedCategory === category.id;
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(category.id)}
-                      className={`rounded-xl border p-4 text-left transition-all duration-200 ${
-                        isActive
-                          ? 'border-primary-400 bg-primary-500/20 shadow-lg shadow-primary-500/20'
-                          : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xl" aria-hidden="true">
-                          {category.icon}
-                        </span>
-                        <CategoryIcon categoryId={category.id} className="text-primary-300" />
-                      </div>
-                      <p className="font-semibold text-slate-100">{category.label}</p>
-                      <p className="text-xs text-slate-400 mt-1">{category.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-slate-100">Категория</h3>
+              <span className="rounded-full bg-slate-800/70 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                {selectedCategoryMeta.icon} {selectedCategoryMeta.label}
+              </span>
             </div>
-          </Card>
-
-          <Card variant="default" size="md">
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-100 uppercase tracking-wider">
-                Сложность
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {difficultyOptions.map((difficulty) => {
-                  const isActive = selectedDifficulty === difficulty;
-                  return (
-                    <button
-                      key={difficulty}
-                      type="button"
-                      onClick={() => setSelectedDifficulty(difficulty)}
-                      className={`rounded-lg border px-3 py-3 transition-all duration-200 ${
-                        isActive
-                          ? 'border-success-400 bg-success-500/20 text-success-100'
-                          : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        {difficulty !== 'all' && (
-                          <DifficultyIcon difficulty={difficulty} className="text-current" />
-                        )}
-                        <span className="font-semibold">{DIFFICULTY_LABELS[difficulty]}</span>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              {QUIZ_CATEGORIES.map((category) => {
+                const isActive = selectedCategory === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={[
+                      'rounded-2xl border p-3.5 text-left transition-all duration-200',
+                      isActive
+                        ? 'border-sky-400/60 bg-sky-500/20 shadow-[0_10px_25px_rgba(14,165,233,0.2)]'
+                        : 'border-slate-700 bg-slate-900/55 hover:border-slate-500 hover:bg-slate-900/70',
+                    ].join(' ')}
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-lg" aria-hidden="true">
+                        {category.icon}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      <CategoryIcon categoryId={category.id} className="text-sky-300" />
+                    </div>
+                    <p className="font-semibold text-slate-100">{category.label}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">{category.description}</p>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
           <Card variant="subtle" size="md">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm uppercase tracking-wider text-slate-400">Текущий прогресс</p>
-                <p className="font-mono text-primary-300">{currentLevelXP}/100 XP</p>
-              </div>
-              <ProgressBar current={currentLevelXP} max={100} color="primary" size="lg" />
-              <p className="text-sm text-slate-300">
-                Уровень {level}, общий счет {score}.
-              </p>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold uppercase tracking-[0.12em] text-slate-100">Сложность</h3>
+              <span className="rounded-full bg-slate-800/70 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                {DIFFICULTY_LABELS[selectedDifficulty]}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {difficultyOptions.map((difficulty) => {
+                const isActive = selectedDifficulty === difficulty;
+                return (
+                  <button
+                    key={difficulty}
+                    type="button"
+                    onClick={() => setSelectedDifficulty(difficulty)}
+                    className={[
+                      'rounded-xl border px-3 py-2.5 text-sm transition-all duration-200',
+                      isActive
+                        ? 'border-emerald-400/70 bg-emerald-500/18 text-emerald-100'
+                        : 'border-slate-700 bg-slate-900/55 text-slate-300 hover:border-slate-500',
+                    ].join(' ')}
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      {difficulty !== 'all' && <DifficultyIcon difficulty={difficulty} className="text-current" />}
+                      <span className="font-semibold">{DIFFICULTY_LABELS[difficulty]}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
           <Card variant="glass" size="md">
-            <div className="space-y-4">
-              <p className="text-slate-300">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em]">
+                <span className="text-slate-400">Прогресс уровня</span>
+                <span className="font-mono text-sky-300">{currentLevelXP}/100 XP</span>
+              </div>
+              <ProgressBar current={currentLevelXP} max={100} color="primary" size="lg" />
+              <p className="text-sm text-slate-300">
+                Текущий уровень: <span className="font-semibold text-slate-100">{level}</span> • общий счёт:{' '}
+                <span className="font-semibold text-emerald-300">{score}</span>
+              </p>
+            </div>
+          </Card>
+
+          <Card variant="default" size="md">
+            <div className="space-y-3">
+              <p className="text-sm text-slate-300">
                 Выбрано: <span className="font-semibold text-slate-100">{selectedCategoryMeta.label}</span> •{' '}
                 <span className="font-semibold text-slate-100">{DIFFICULTY_LABELS[selectedDifficulty]}</span>
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <Button onClick={handleStart} variant="primary" size="lg" icon="▶">
-                  Играть
+                  Начать игру
                 </Button>
                 <Button onClick={onViewLeaderboard} variant="secondary" size="lg" icon="🏆">
                   Лидерборд

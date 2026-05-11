@@ -7,3 +7,4 @@ export { UserProfileModal } from './UserProfileModal';
 export { CategoryIcon, DifficultyIcon } from './QuizIcons';
 export { AvatarBadge } from './AvatarBadge';
 export { AchievementToast } from './AchievementToast';
+export { BottomNav } from './BottomNav';
