@@ -89,6 +89,9 @@ const parseJson = <T,>(value: string | null, fallback: T): T => {
 
 const normalizeUserProfile = (candidate: UserProfile): UserProfile => {
   const normalizedXP = Number.isFinite(candidate.stats?.totalXP) ? Math.max(0, candidate.stats.totalXP) : 0;
+  const normalizedTotalScore = Number.isFinite(candidate.stats?.totalScore)
+    ? Math.max(0, Math.trunc(candidate.stats.totalScore))
+    : 0;
   const normalizedLevel = Math.max(
     1,
     Number.isFinite(candidate.stats?.level)
@@ -102,6 +105,7 @@ const normalizeUserProfile = (candidate: UserProfile): UserProfile => {
     stats: {
       ...defaultStats(),
       ...(candidate.stats ?? {}),
+      totalScore: normalizedTotalScore,
       totalXP: normalizedXP,
       level: normalizedLevel,
       bestStreak: Math.max(candidate.stats?.bestStreak ?? 0, candidate.stats?.currentStreak ?? 0),
@@ -142,7 +146,7 @@ const migrateLegacyState = (): { users: UserProfile[]; sessionUserId: string | n
   }
 
   const xp = parseInt(localStorage.getItem('eduplay_xp') || '0', 10);
-  const score = parseInt(localStorage.getItem('eduplay_score') || '0', 10);
+  const score = Math.max(0, parseInt(localStorage.getItem('eduplay_score') || '0', 10) || 0);
   const level = parseInt(localStorage.getItem('eduplay_level') || '1', 10);
   const streak = parseInt(localStorage.getItem('eduplay_streak') || '0', 10);
   const achievements = parseJson<Achievement[]>(localStorage.getItem('eduplay_achievements'), []);
@@ -571,9 +575,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setScore = (nextScore: number) => {
     if (!user) return;
+    const safeScore = Math.max(0, Math.trunc(nextScore));
     patchCurrentUser((current) => ({
       ...current,
-      stats: { ...current.stats, totalScore: nextScore },
+      stats: { ...current.stats, totalScore: safeScore },
     }));
   };
 
@@ -581,7 +586,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     patchCurrentUser((current) => ({
       ...current,
-      stats: { ...current.stats, totalScore: current.stats.totalScore + points },
+      stats: {
+        ...current.stats,
+        totalScore: Math.max(0, Math.trunc(current.stats.totalScore + points)),
+      },
     }));
   };
 

@@ -395,7 +395,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           <section className="animate-slideUp space-y-3">
             <div className="px-1">
               <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Разработчики</p>
-              <h2 className="mt-1 text-2xl font-bold text-slate-100 sm:text-3xl">Команда EduPlay</h2>
+              <h2 className="mt-1 text-2xl font-bold text-slate-100 sm:text-3xl">Команда EduPlay (AI Group)</h2>
             </div>
             <Card variant="subtle" size="md">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">

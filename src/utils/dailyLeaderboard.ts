@@ -125,6 +125,7 @@ export const addDailyResult = (score: number, playerName?: string): void => {
   let data = checkAndResetDailyIfNeeded();
   const playerId = getOrCreatePlayerId();
   const now = Date.now();
+  const safeScore = Number.isFinite(score) ? Math.max(0, Math.trunc(score)) : 0;
 
   // Сохранить имя если передано
   if (playerName) {
@@ -137,8 +138,8 @@ export const addDailyResult = (score: number, playerName?: string): void => {
   if (existingIndex >= 0) {
     // Обновить существующую запись
     const entry = data.entries[existingIndex];
-    entry.totalScore += score;
-    entry.bestScore = Math.max(entry.bestScore, score);
+    entry.totalScore = Math.max(0, entry.totalScore + safeScore);
+    entry.bestScore = Math.max(entry.bestScore, safeScore);
     entry.attemptsCount += 1;
     entry.lastUpdate = now;
   } else {
@@ -146,8 +147,8 @@ export const addDailyResult = (score: number, playerName?: string): void => {
     const newEntry: DailyLeaderboardEntry = {
       userId: playerId,
       name: playerName || getPlayerName(),
-      totalScore: score,
-      bestScore: score,
+      totalScore: safeScore,
+      bestScore: safeScore,
       attemptsCount: 1,
       timestamp: now,
       lastUpdate: now,

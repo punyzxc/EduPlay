@@ -142,6 +142,9 @@ const mapRowToProfile = (row) => {
   const { achievementsJson, unlockedItemsJson, profileSettingsJson, ...rest } = row;
   return {
     ...rest,
+    totalScore: Math.max(0, Number(rest.totalScore) || 0),
+    bestScore: Math.max(0, Number(rest.bestScore) || 0),
+    dailyScore: Math.max(0, Number(rest.dailyScore) || 0),
     achievements,
     unlockedItems,
     profileSettings,
@@ -220,6 +223,13 @@ export const initDatabase = async () => {
       await run(`ALTER TABLE users ADD COLUMN ${column.name} ${column.definition}`);
     }
   }
+
+  await run(`
+    UPDATE users
+    SET totalScore = CASE WHEN totalScore < 0 THEN 0 ELSE totalScore END,
+        bestScore = CASE WHEN bestScore < 0 THEN 0 ELSE bestScore END,
+        dailyScore = CASE WHEN dailyScore < 0 THEN 0 ELSE dailyScore END
+  `);
 };
 
 export const resetDailyScoresIfNeeded = async () => {
@@ -479,8 +489,8 @@ export const submitScore = async ({
   const normalizedLastPlayedAtBase = normalizeIsoDate(lastPlayedAt, user.lastPlayedAt ?? '');
   const normalizedLastPlayedAt = score !== 0 && appliedScore === score ? now : normalizedLastPlayedAtBase;
 
-  const totalScore = (user.totalScore ?? 0) + appliedScore;
-  const dailyScore = (user.dailyScore ?? 0) + appliedScore;
+  const totalScore = Math.max(0, (user.totalScore ?? 0) + appliedScore);
+  const dailyScore = Math.max(0, (user.dailyScore ?? 0) + appliedScore);
   const bestScore = Math.max(user.bestScore ?? 0, appliedScore > 0 ? appliedScore : 0);
 
   await run(
